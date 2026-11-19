@@ -8255,32 +8255,14 @@ end)()
         if gd ~= lastGunObj then
             lastGunObj = gd
             gunAttempts = 0
-            SFX.gunSeenAt = os.clock()
-            SFX.gunGaveUp = false
         end
-        -- Bu silah için vazgeçildiyse (yeni silah düşene ya da özellik yeniden açılana kadar) deneme
-        if SFX.gunGaveUp then return end
-        -- Ölüysen deneme (süre de ölüyken işlemez; dirilince baştan sayar)
+        -- Ölüysen deneme; dirilince silah hâlâ yerdeyse hemen devam eder
         local humA = myHum()
-        if not humA or humA.Health <= 0 then
-            SFX.gunSeenAt = os.clock()
-            return
-        end
+        if not humA or humA.Health <= 0 then return end
         -- Önceki alma işlemi hata ile takılı kaldıysa kilidi aç
         if grabbing and os.clock() - (SFX.grabAt or 0) > 3 then grabbing = false end
         if hasGun() or grabbing then return end
-        if os.clock() - lastGunTry < 0.03 then return end
-        -- Silah başka birindeyse deneme
-        if gunHeldByAnotherPlayer() then
-            SFX.gunSeenAt = os.clock()
-            return
-        end
-        -- Çok denendi ya da çok süre geçti: vazgeç
-        if gunAttempts >= 12 or os.clock() - (SFX.gunSeenAt or os.clock()) > 6 then
-            SFX.gunGaveUp = true
-            gunDiag("Silah alınamadı, otomatik alma bırakıldı.")
-            return
-        end
+        -- Vazgeçme / bekleme yok: silah yerde olduğu sürece sürekli dener
         lastGunTry = os.clock()
         local _, attempted = gotoGun(true)
         if attempted then gunAttempts = gunAttempts + 1 end
