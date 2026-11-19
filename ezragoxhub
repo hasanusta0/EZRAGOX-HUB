@@ -136,6 +136,10 @@ local Settings = {
     MM2WallMouse = false,           -- MM2: duvar arkası vuruş için fare tuşu (orta tık)
     MM2AimKey = Enum.KeyCode.Unknown,  -- MM2: aimbot (katile kilitlen) aç/kapa tuşu (varsayılan atanmamış)
     MM2AimMouse = false,            -- MM2: aimbot için fare tuşu (orta tık)
+    MM2SnipeKey = Enum.KeyCode.Unknown, -- MM2: şerifi fırlat + silahı al + katili vur (tek tuş)
+    MM2SnipeMouse = false,
+    MM2LoopFlingKey = Enum.KeyCode.Unknown, -- MM2: sürekli fırlatmayı aç/kapa tuşu
+    MM2LoopFlingMouse = false,
     MM2Lobby = false,               -- MM2: kaydedilen lobi konumu {x=,y=,z=}
     MM2GunSound = 0,                -- MM2: seçili silah sesi (0 = orijinal ses)
     SelectedSkyId = nil,             -- Son seçilen gökyüzü
@@ -180,6 +184,10 @@ local function saveConfig()
                 MM2WallMouse = Settings.MM2WallMouse and Settings.MM2WallMouse.Name or nil,
                 MM2AimKey = Settings.MM2AimKey.Name,
                 MM2AimMouse = Settings.MM2AimMouse and Settings.MM2AimMouse.Name or nil,
+                MM2SnipeKey = Settings.MM2SnipeKey.Name,
+                MM2SnipeMouse = Settings.MM2SnipeMouse and Settings.MM2SnipeMouse.Name or nil,
+                MM2LoopFlingKey = Settings.MM2LoopFlingKey.Name,
+                MM2LoopFlingMouse = Settings.MM2LoopFlingMouse and Settings.MM2LoopFlingMouse.Name or nil,
                 MM2FlingMouse = Settings.MM2FlingMouse and Settings.MM2FlingMouse.Name or nil,
                 MM2InvisMouse = Settings.MM2InvisMouse and Settings.MM2InvisMouse.Name or nil,
                 MM2Lobby = type(Settings.MM2Lobby) == "table" and Settings.MM2Lobby or nil,
@@ -232,6 +240,10 @@ local function loadConfig()
                 if data.MM2WallMouse and Enum.UserInputType[data.MM2WallMouse] then Settings.MM2WallMouse = Enum.UserInputType[data.MM2WallMouse] end
                 if data.MM2AimKey and Enum.KeyCode[data.MM2AimKey] then Settings.MM2AimKey = Enum.KeyCode[data.MM2AimKey] end
                 if data.MM2AimMouse and Enum.UserInputType[data.MM2AimMouse] then Settings.MM2AimMouse = Enum.UserInputType[data.MM2AimMouse] end
+                if data.MM2SnipeKey and Enum.KeyCode[data.MM2SnipeKey] then Settings.MM2SnipeKey = Enum.KeyCode[data.MM2SnipeKey] end
+                if data.MM2SnipeMouse and Enum.UserInputType[data.MM2SnipeMouse] then Settings.MM2SnipeMouse = Enum.UserInputType[data.MM2SnipeMouse] end
+                if data.MM2LoopFlingKey and Enum.KeyCode[data.MM2LoopFlingKey] then Settings.MM2LoopFlingKey = Enum.KeyCode[data.MM2LoopFlingKey] end
+                if data.MM2LoopFlingMouse and Enum.UserInputType[data.MM2LoopFlingMouse] then Settings.MM2LoopFlingMouse = Enum.UserInputType[data.MM2LoopFlingMouse] end
                 if data.MM2FlingMouse and Enum.UserInputType[data.MM2FlingMouse] then Settings.MM2FlingMouse = Enum.UserInputType[data.MM2FlingMouse] end
                 if data.MM2InvisMouse and Enum.UserInputType[data.MM2InvisMouse] then Settings.MM2InvisMouse = Enum.UserInputType[data.MM2InvisMouse] end
                 if tonumber(data.MM2GunSound) then Settings.MM2GunSound = math.clamp(math.floor(tonumber(data.MM2GunSound)), 0, 5) end
@@ -8014,7 +8026,11 @@ end)()
 
     bind(workspace.DescendantAdded, function(d)
         if d.Name == "GunDrop" or d.Name == "Gun" then
-            if isDroppedGun(d) then gunDropCache = d end
+            if isDroppedGun(d) then
+                gunDropCache = d
+                -- Silah düştüğü AN otomatik alma tetiklenir (döngüyü beklemeden)
+                if autoGunOn and SFX.autoGunNow then task.defer(SFX.autoGunNow) end
+            end
         end
     end)
 
@@ -8223,11 +8239,106 @@ end)()
             lastGunObj = gd
             gunAttempts = 0
         end
-        if gunAttempts >= 4 or hasGun() or grabbing then return end
-        if os.clock() - lastGunTry < 0.8 then return end
+        if gunAttempts >= 12 or hasGun() or grabbing then return end
+        if os.clock() - lastGunTry < 0.12 then return end
         lastGunTry = os.clock()
         local _, attempted = gotoGun(true)
         if attempted then gunAttempts = gunAttempts + 1 end
+    end
+
+    -- Silah yeni düştü: parça(lar) gelene kadar çok kısa bekle ve hemen almaya git
+    function SFX.autoGunNow()
+        for _ = 1, 12 do
+            if gunDropInfo() then break end
+            task.wait(0.02)
+        end
+        pcall(function()
+            lastGunTry = 0
+            autoGunStep()
+        end)
+    end
+
+    ---------------------------------------------------------
+    -- ŞERİFİ FIRLAT → SİLAHI AL → KATİLİ VUR  (TEK TUŞ)
+    -- 1) Silah bende değil ve yerde de yoksa şerifi fırlatır (ölünce silah düşer)
+    -- 2) Düşen silaha ışınlanıp alır, aldığı an eski yerine döner
+    -- 3) Silahla katile ateş eder (premium varsa duvar arkası / ışınlanmalı vuruş dahil)
+    ---------------------------------------------------------
+    SFX.snipeBusy = false
+    function SFX.sheriffSnipe()
+        if SFX.snipeBusy then
+            notify("Bekle", "Önceki işlem sürüyor.", 2)
+            return
+        end
+        local role, dead = myRole()
+        if dead then notify("Şerif Avı", "Ölüsün.", 2) return end
+        if role == "Murderer" then notify("Şerif Avı", "Katilsin: bu özellik katili vurmak içindir.", 3) return end
+        SFX.snipeBusy = true
+        task.spawn(function()
+            local HB = RunService.Heartbeat
+            pcall(function()
+                local murderer = findRole("Murderer", true)
+                if not murderer then
+                    notify("Şerif Avı", "Katil bulunamadı (roller henüz atanmamış olabilir).", 3)
+                    return
+                end
+
+                -- 1) Şerifi fırlat (silah zaten bende veya yerdeyse bu adım atlanır).
+                --    Tüm beklemeler KARE bazlı: silah düştüğü karede bir sonraki adıma geçilir.
+                if not hasGun() and not gunDropInfo() then
+                    for round = 1, 2 do
+                        local sheriff = findRole("Sheriff", true)
+                        if not sheriff then break end
+                        notify("Şerif Avı", sheriff.DisplayName .. " fırlatılıyor...", 1.5)
+                        flingTarget(sheriff)   -- fling meşgul bayrağını anında kurar
+                        local t0 = os.clock()
+                        -- fırlatma bitene kadar (fling'in geri dönüşü bitmeden silaha gitme)
+                        while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 9 do HB:Wait() end
+                        -- silah düşene kadar kare kare bekle (en fazla 3 sn)
+                        local t1 = os.clock()
+                        while alive and not gunDropInfo() and not hasGun() and os.clock() - t1 < 3 do HB:Wait() end
+                        if gunDropInfo() or hasGun() then break end
+                    end
+                    if not hasGun() and not gunDropInfo() then
+                        notify("Şerif Avı", "Silah düşmedi (şerif ölmedi ya da silah kayboldu).", 3)
+                        return
+                    end
+                end
+
+                -- 2) Düşen silahı al: bekleme YOK, her karede ışınlan + temas (alır almaz eski yerine döner)
+                if not hasGun() then
+                    local t0 = os.clock()
+                    while alive and not hasGun() and os.clock() - t0 < 5 do
+                        if not gunDropInfo() then break end
+                        gotoGun(false)
+                        HB:Wait()
+                    end
+                    if not hasGun() then
+                        notify("Şerif Avı", "Silah alınamadı.", 3)
+                        return
+                    end
+                end
+
+                -- 3) Katili vur: ilk atış hemen; sonra silahın bekleme süresine uygun aralıkla tekrar
+                local t0 = os.clock()
+                while alive and os.clock() - t0 < 6 do
+                    if not murderer.Parent or not isAlive(murderer) then break end
+                    if not hasGun() then break end
+                    shootTarget(true)
+                    local t1 = os.clock()
+                    while os.clock() - t1 < 0.45 and alive do
+                        if not murderer.Parent or not isAlive(murderer) then break end
+                        HB:Wait()
+                    end
+                end
+                if not murderer.Parent or not isAlive(murderer) then
+                    notify("Şerif Avı", "Katil vuruldu!", 3)
+                else
+                    notify("Şerif Avı", "Katil vurulamadı.", 3)
+                end
+            end)
+            SFX.snipeBusy = false
+        end)
     end
 
     ---------------------------------------------------------
@@ -9638,6 +9749,11 @@ end)()
     createToggle(MM2Page, "🔫  Aimbot Çalışırken Otomatik Ateş (Katil Görünüyorsa)", false, function(v)
         SFX.aimAuto = v
     end, false)
+    createSection(MM2Page, "🎯  ŞERİFİ FIRLAT → SİLAHI AL → KATİLİ VUR  (TEK TUŞ)")
+    createButton(MM2Page, "🎯  Şimdi Çalıştır", function()
+        SFX.sheriffSnipe()
+    end)
+    keyRow("Tek Tuş: Şerifi Fırlat + Silahı Al + Katili Vur  (orta tık atanabilir)", "MM2SnipeKey")
     Settings.PremiumGated = Settings.PremiumGated or {}
     Settings.PremiumGated[#Settings.PremiumGated + 1] = wallToggle
     -- Açılışta görsel olarak kapalı başlasın (kayıtlı durum, premium doğrulanınca geri yüklenir)
@@ -11677,6 +11793,59 @@ end)()
             flingTarget(getFlingTarget())
         end)
         keyRow("Fırlatma Tuşu (seçili oyuncuyu fırlat)", "MM2FlingKey")
+
+        -- SÜREKLİ FIRLAT: açıkken seçili oyuncu her 1-2 sn'de bir fırlatılır; fırlatılan oyuncu haritaya
+        -- geri döner dönmez (bekleme süresi dolmadan) hemen yeniden fırlatılır.
+        SFX.autoFlingOn, SFX.autoFlingGap = false, 1.5
+        SFX.autoFlingToggle = createToggle(MM2Page, "🔁  Sürekli Fırlat (Seçili Oyuncu • aç / kapa)", false, function(v)
+            SFX.autoFlingOn = v
+            if v then
+                local okT, t = pcall(getFlingTarget)
+                if okT and t then
+                    notify("Sürekli Fırlat", t.Name .. " sürekli fırlatılacak. Kapatmak için anahtarı kapat.", 3)
+                else
+                    notify("Sürekli Fırlat", "Önce yukarıdan bir oyuncu seç.", 3)
+                end
+            end
+        end, false)
+        SFX.autoFlingToggle.Set(false, true, true)   -- açılışta kapalı başlasın
+        keyRow("Sürekli Fırlat Aç/Kapa Tuşu  (orta tık atanabilir)", "MM2LoopFlingKey")
+        createSlider(MM2Page, "⏱  Fırlatma Aralığı  (10 = 1.0 sn  •  20 = 2.0 sn)", 10, 20, 15, function(v)
+            SFX.autoFlingGap = (tonumber(v) or 15) / 10
+        end)
+        task.spawn(function()
+            local lastEnd, away, lastTarget = 0, false, nil
+            while alive do
+                task.wait(0.1)
+                if SFX.autoFlingOn then
+                    pcall(function()
+                        local kit = Settings.FlingKit
+                        local t = getFlingTarget()
+                        if t ~= lastTarget then lastTarget, away = t, false end
+                        if not t or t == LocalPlayer or not t.Parent then return end
+                        local me = LocalPlayer.Character
+                        local mh = me and me:FindFirstChildOfClass("Humanoid")
+                        if not mh or mh.Health <= 0 then return end
+                        local ch = t.Character
+                        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+                        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                        -- "Haritada": yaşıyor, boşluğa düşmemiş, çok uzakta değil ve hâlâ uçmuyor
+                        local onMap = hum ~= nil and hrp ~= nil and hum.Health > 0
+                            and hrp.Position.Y > workspace.FallenPartsDestroyHeight + 20
+                            and hrp.Position.Magnitude < 5000
+                            and hrp.AssemblyLinearVelocity.Magnitude < 250
+                        if not onMap then away = true return end
+                        if kit.isBusy() then lastEnd = os.clock() return end
+                        -- Haritaya yeni döndüyse HEMEN; değilse bekleme süresi dolunca
+                        if away or os.clock() - lastEnd >= SFX.autoFlingGap then
+                            away = false
+                            lastEnd = os.clock()
+                            kit.fling(t)
+                        end
+                    end)
+                end
+            end
+        end)
     end
     -- FIRLATMA MODLARI: Tıklayarak / Dokunarak (ortak modül)
     Settings.FlingKit.addModes(MM2Page)
@@ -14778,7 +14947,7 @@ end)()
                     setText(listening.text, mouseLabel(Settings[mouseField]) or cur.Name)
                     listening = nil
                 elseif kc == Settings.ToggleKey or kc == Settings.FlyKey
-                    or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.EmoteKey then
+                    or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey or kc == Settings.EmoteKey then
                     setText(listening.text, "Bu tuş kullanımda")
                 else
                     Settings[listening.key] = kc
@@ -14789,7 +14958,7 @@ end)()
                 end
             else
                 local midTaken = false
-                for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse"}) do
+                for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse"}) do
                     if f ~= mouseField and Settings[f] == Enum.UserInputType.MouseButton3 then midTaken = true end
                 end
                 if midTaken then
@@ -14821,6 +14990,10 @@ end)()
             SFX.wallShoot()
         elseif hotkeyMatches(input, Settings.MM2AimKey, Settings.MM2AimMouse) then
             if SFX.aimToggle then SFX.aimToggle.Set(not SFX.aimOn) end
+        elseif hotkeyMatches(input, Settings.MM2SnipeKey, Settings.MM2SnipeMouse) then
+            if SFX.sheriffSnipe then SFX.sheriffSnipe() end
+        elseif hotkeyMatches(input, Settings.MM2LoopFlingKey, Settings.MM2LoopFlingMouse) then
+            if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
         end
     end)
 
@@ -14836,7 +15009,7 @@ end)()
             -- Orta tık atanmışsa tuşu Roblox'un kendi kamera / shift-lock işleyicilerinden gizle (sink):
             -- oyun orta tıkı "shift-lock" gibi yorumlayıp fareyi kilitlemesin.
             local wantSink = false
-            for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse"}) do
+            for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse"}) do
                 if Settings[f] == Enum.UserInputType.MouseButton3 then wantSink = true end
             end
             if wantSink and not midSinkBound then
@@ -14893,6 +15066,10 @@ end)()
                     SFX.wallShoot()
                 elseif Settings.MM2AimMouse == M3 then
                     if SFX.aimToggle then SFX.aimToggle.Set(not SFX.aimOn) end
+                elseif Settings.MM2SnipeMouse == M3 then
+                    if SFX.sheriffSnipe then SFX.sheriffSnipe() end
+                elseif Settings.MM2LoopFlingMouse == M3 then
+                    if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
                 end
             end)
         end)
@@ -14972,7 +15149,7 @@ end)()
     task.spawn(function()
         while alive do
             if autoGunOn then pcall(autoGunStep) end
-            task.wait(0.25)
+            task.wait(0.03)
         end
     end)
     task.spawn(function()
@@ -19191,7 +19368,7 @@ PX.secHolders.emote = createSection(PremiumPage, "💃  PREMİUM EMOTE  (DANS)")
                     setText(keyText, Settings.EmoteKey.Name)
                 elseif kc == Settings.ToggleKey or kc == Settings.FlyKey
                     or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey
-                    or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey then
+                    or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey then
                     setText(keyText, "Bu tuş kullanımda")
                 elseif kc ~= Enum.KeyCode.Unknown then
                     Settings.EmoteKey = kc
