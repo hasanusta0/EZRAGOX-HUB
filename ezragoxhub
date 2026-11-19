@@ -6841,6 +6841,10 @@ end)()
                         if not key and type(nm) == "string" and string.find(string.lower(nm), "throw", 1, true) then
                             -- Bıçak atma çağrısı: argümanlar öğrenilir (ses/efekt tetiklenmez)
                             learned["Throw"] = {args = table.pack(...), t = os.clock()}
+                            if SFX.zoneKnife then
+                                local okK, rk = pcall(SFX.zoneKnife, table.pack(...))
+                                if okK and rk then mod = rk end
+                            end
                         end
                         if key then
                             learned[key] = {args = table.pack(...), t = os.clock()}
@@ -6855,6 +6859,11 @@ end)()
                                 elseif okR and r then
                                     mod = r SFX.lastRedirect = os.clock()
                                 end
+                            end
+                            -- HİTBOX ETKİ ALANI: mermi karaktere değmese de yakından geçtiyse vuruş say
+                            if not mod and not swallow and key ~= "CreateBeam" and SFX.zoneAssist then
+                                local okZ, rz = pcall(SFX.zoneAssist, key, table.pack(...))
+                                if okZ and rz then mod = rz SFX.lastRedirect = os.clock() end
                             end
                         end
                     end
@@ -7684,41 +7693,99 @@ end)()
         for part in pairs(SFX.hbOrig) do list[#list + 1] = part end
         for _, part in ipairs(list) do SFX.hbRestorePart(part) end
     end
-    function SFX.hbApply(ch)
-        local w = SFX.hitboxW or 0
+    -- Artık karakterin parçası büyütülmüyor (görünmez HRP genişletme kaldırıldı).
+    -- Yerine aşağıdaki "etki alanı" (SFX.zoneAssist / SFX.zoneKnife) kullanılıyor.
+    function SFX.hbApply(ch, wOverride)
         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-        if not (hrp and hrp:IsA("BasePart")) then return end
-        if w <= 0 then SFX.hbRestorePart(hrp) return end
-        local rec = SFX.hbOrig[hrp]
-        if not rec then
-            rec = {size = hrp.Size, cc = hrp.CanCollide, t = os.clock()}
-            SFX.hbOrig[hrp] = rec
-        end
-        rec.t = os.clock()
-        local want = Vector3.new(rec.size.X + w, rec.size.Y, rec.size.Z + w)
-        if hrp.Size ~= want then hrp.Size = want end
-        if hrp.CanCollide then hrp.CanCollide = false end
+        if hrp then SFX.hbRestorePart(hrp) end
     end
-    task.spawn(function()
-        while alive do
-            task.wait(0.15)
-            pcall(function()
-                local w = SFX.hitboxW or 0
-                if w <= 0 then SFX.hbRestore() return end
-                local m = findGun() and findRole("Murderer", true) or nil
-                local mch = m and m.Character
-                local stale = {}
-                for part, rec in pairs(SFX.hbOrig) do
-                    if not (mch and part.Parent == mch) and os.clock() - rec.t > 4 then
-                        stale[#stale + 1] = part
-                    end
-                end
-                for _, part in ipairs(stale) do SFX.hbRestorePart(part) end
-                if mch then SFX.hbApply(mch) end
-            end)
+    pcall(SFX.hbRestore)
+
+    ---------------------------------------------------------
+    -- HİTBOX ETKİ ALANI: karakterin etrafında (sağ / sol / yukarı / aşağı) görünmez geniş bir bölge.
+    -- Mermi ya da bıçak karaktere değmeden bu bölgeden geçerse, atış doğrudan karaktere yönlendirilir
+    -- ve oyun bunu isabet sayar. Karakterin boyutu/görünüşü hiç değişmez.
+    --   SFX.hitboxW   = mermi için etki alanı yarıçapı (stud)   • 0 = kapalı
+    --   SFX.knifeHitW = bıçak atma için etki alanı yarıçapı     • 0 = kapalı
+    ---------------------------------------------------------
+    -- Atış çağrısındaki çıkış noktası ve hedef noktasını bulur
+    function SFX.shotRay(args)
+        local idxs = {}
+        for i = 1, args.n do
+            local t = typeof(args[i])
+            if t == "Vector3" or t == "CFrame" then idxs[#idxs + 1] = i end
         end
-        pcall(SFX.hbRestore)
-    end)
+        if #idxs == 0 then return nil end
+        local function pos(v) return typeof(v) == "CFrame" and v.Position or v end
+        local aim = pos(args[idxs[#idxs]])
+        local origin
+        if #idxs >= 2 then origin = pos(args[idxs[1]]) end
+        if not origin then
+            local gun = findGun()
+            local handle = gun and gun:FindFirstChild("Handle")
+            origin = (handle and handle:IsA("BasePart") and handle.Position) or (myHRP() and myHRP().Position)
+        end
+        if not origin then return nil end
+        return origin, aim
+    end
+
+    -- Atış hattının (başlangıçtan hedefe, 500 stud uzatılmış) karakterin etki alanına en yakın uzaklığı.
+    -- Yukarı/aşağı yarıçap biraz daha büyüktür (karakter uzun olduğu için).
+    function SFX.zoneDist(origin, aim, center, R)
+        local dirV = aim - origin
+        if dirV.Magnitude < 0.01 then return math.huge end
+        local Ry = R + 2.5
+        local k = R / Ry
+        local function sc(v) return Vector3.new(v.X, v.Y * k, v.Z) end
+        local o, c = sc(origin), sc(center)
+        local d = sc(dirV).Unit
+        local t = math.clamp((c - o):Dot(d), 0, 500)
+        return ((o + d * t) - c).Magnitude
+    end
+
+    -- Silahla gerçek atış: mermi katilin etki alanından geçiyorsa katile yönlendir
+    function SFX.zoneAssist(key, args)
+        local R = SFX.hitboxW or 0
+        if R <= 0 then return nil end
+        local origin, aim0 = SFX.shotRay(args)
+        if not origin then return nil end
+        local m = findRole("Murderer", true)
+        local ch = m and m.Character
+        local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+        local part = ch and targetPartOf(ch)
+        if not (part and hum and hum.Health > 0) then return nil end
+        if SFX.zoneDist(origin, aim0, part.Position, R) > R then return nil end
+        local aim = aimPoint(part, hum)
+        if not (wallOn and Settings.PremiumActive) then
+            aim = SFX.visibleAim(origin, part, hum)   -- duvar arkasında ise yönlendirme yok
+            if not aim then return nil end
+        end
+        SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+        task.defer(SFX.track, part, hum)
+        return withPos(args, aim, origin)
+    end
+
+    -- Bıçak atma: bıçak herhangi bir canlı oyuncunun etki alanından geçiyorsa o oyuncuya yönlendir
+    function SFX.zoneKnife(args)
+        local R = SFX.knifeHitW or 0
+        if R <= 0 or not (SFX.hasKnife and SFX.hasKnife()) then return nil end
+        local origin, aim0 = SFX.shotRay(args)
+        if not origin then return nil end
+        local best, bestD
+        for _, pl in ipairs(Players:GetPlayers()) do
+            local ch = pl ~= LocalPlayer and pl.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            local part = ch and targetPartOf(ch)
+            if hum and part and hum.Health > 0 and isAlive(pl) then
+                local d = SFX.zoneDist(origin, aim0, part.Position, R)
+                if d <= R and (not bestD or d < bestD) and SFX.targetVisible(origin, part, aimPoint(part, hum)) then
+                    best, bestD = {part = part, hum = hum}, d
+                end
+            end
+        end
+        if not best then return nil end
+        return withPos(args, aimPoint(best.part, best.hum), origin)
+    end
 
     -- Silah elindeyken tıklayınca katile DOĞRUDAN kendi ateşimizi de gönder.
     -- Önceden bu sadece executor __namecall hook'unu desteklemiyorsa çalışıyordu; o zaman
@@ -7761,6 +7828,8 @@ end)()
         if k and k:IsA("Tool") then return k end
         return nil
     end
+
+    SFX.hasKnife = function() return findKnife() ~= nil end
 
     local function equipTool(tool)
         local ch, hum = LocalPlayer.Character, myHum()
@@ -8086,8 +8155,38 @@ end)()
         return nil
     end
 
+    -- Lobide miyim? Oto silah alma SADECE haritadayken (oyundayken) çalışır:
+    -- harita yoksa, lobi bölgesindeysem ya da harita sınırlarının dışındaysam lobi sayılır.
+    function SFX.inLobby()
+        local m
+        pcall(function() m = findMap() end)
+        if m == nil then return true end
+        local hrp = myHRP()
+        if not hrp then return false end
+        local pos = hrp.Position
+        local function inBox(model, pad)
+            local ok, cf, size = pcall(function() return model:GetBoundingBox() end)
+            if not ok or not cf then return nil end
+            local rel = cf:PointToObjectSpace(pos)
+            local h = size / 2 + pad
+            return math.abs(rel.X) <= h.X and math.abs(rel.Y) <= h.Y and math.abs(rel.Z) <= h.Z
+        end
+        local lobby = workspace:FindFirstChild("Lobby")
+        if lobby and inBox(lobby, Vector3.new(12, 40, 12)) then return true end
+        local L = Settings.MM2Lobby
+        if type(L) == "table" and tonumber(L.x) and tonumber(L.y) and tonumber(L.z) then
+            if (pos - Vector3.new(L.x, L.y, L.z)).Magnitude < 45 then return true end
+        end
+        if m:IsA("Model") then
+            local inside = inBox(m, Vector3.new(30, 120, 30))
+            if inside == false then return true end   -- haritanın dışındayım = lobi
+        end
+        return false
+    end
+
     local function gotoGun(auto)
         if grabbing then return false, false end
+        if auto and SFX.inLobby() then return false, false end
         local gd, part = gunDropInfo()
         if not gd then
             if not auto then
@@ -8247,6 +8346,7 @@ end)()
 
     local lastGunTry = 0
     local function autoGunStep()
+        if SFX.inLobby() then return end   -- lobideyken otomatik silah alma yok
         local gd = gunDropInfo()
         if not gd then
             gunAttempts, lastGunObj = 0, nil
@@ -9716,9 +9816,14 @@ end)()
         SFX.ownMul = (tonumber(v) or 100) / 100
     end)
     SFX.hitboxW = 3
-    createSlider(MM2Page, "📐  Hitbox Genişliği (stud)  •  kaçırıyorsan artır, 0 = kapalı", 0, 12, 3, function(v)
+    createSlider(MM2Page, "📐  Hitbox Etki Alanı (stud)  •  mermi karakteri ıskalasa bile bu kadar yakından geçerse vurur, 0 = kapalı", 0, 12, 3, function(v)
         SFX.hitboxW = tonumber(v) or 3
         if SFX.hitboxW <= 0 and SFX.hbRestore then pcall(SFX.hbRestore) end
+    end)
+    SFX.knifeHitW = 4
+    createSlider(MM2Page, "🔪  Bıçak Etki Alanı (stud)  •  bıçak karakteri ıskalasa bile yakından geçerse vurur, 0 = kapalı", 0, 15, 4, function(v)
+        SFX.knifeHitW = tonumber(v) or 4
+        if SFX.knifeHitW <= 0 and (SFX.hitboxW or 0) <= 0 and SFX.hbRestore then pcall(SFX.hbRestore) end
     end)
     local SMART_TOGGLE = "🧠  Akıllı Zamanlama (kaçan hedefte kısa bekle)"
     SFX.smartOn = savedOr(SMART_TOGGLE, true)
