@@ -8100,23 +8100,34 @@ end)()
             end
             return false, false
         end
-        local role, dead = myRole()
-        if dead or role == "Murderer" then
+        -- Sunucuya rol sorusu (InvokeServer) göndermeden, yerel kontrol: ölü mü / katil mi?
+        -- (Eskiden burada bekleyen sorgu alımı geciktiriyor ya da eski önbellekle engelliyordu.)
+        local hum0 = myHum()
+        if not hum0 or hum0.Health <= 0 then return false, false end
+        local ch0 = LocalPlayer.Character
+        local bp0 = LocalPlayer:FindFirstChildOfClass("Backpack")
+        if (ch0 and ch0:FindFirstChild("Knife")) or (bp0 and bp0:FindFirstChild("Knife")) then
             if auto then gunDiag("Katilsin, silah alamazsin.") end
             return false, false
         end
         local hrp = myHRP()
         if not hrp then return false, false end
-        if auto then
-            local m = findRole("Murderer", true)
-            local mh = m and m.Character and m.Character:FindFirstChild("HumanoidRootPart")
-            if mh and (mh.Position - part.Position).Magnitude < 14 then
-                gunDiag("Katil silahin yaninda, bekleniyor...")
-                return false, false
+        -- İsteğe bağlı: katil silahın yanındayken bekle (varsayılan KAPALI; açmak için true yap)
+        if auto and SFX.autoGunAvoidMurderer then
+            for name, info in pairs(roleCache) do
+                if info.Role == "Murderer" and not info.Dead then
+                    local mp = Players:FindFirstChild(name)
+                    local mh = mp and mp ~= LocalPlayer and mp.Character and mp.Character:FindFirstChild("HumanoidRootPart")
+                    if mh and (mh.Position - part.Position).Magnitude < 14 then
+                        gunDiag("Katil silahin yaninda, bekleniyor...")
+                        return false, false
+                    end
+                end
             end
         end
 
         grabbing = true
+        SFX.grabAt = os.clock()
         local origin = hrp.CFrame
         local got, touched = hasGun(), false
         local finished = false
@@ -8206,11 +8217,17 @@ end)()
             pcall(function()
                 if firetouchinterest then
                     local ch = LocalPlayer.Character
-                    for _, nm in ipairs({"HumanoidRootPart", "RightFoot", "LeftFoot", "RightLowerLeg", "LeftLowerLeg"}) do
+                    local targets = {currentPart}
+                    for _, d in ipairs(currentDrop:GetDescendants()) do
+                        if d:IsA("BasePart") and d ~= currentPart and #targets < 4 then targets[#targets + 1] = d end
+                    end
+                    for _, nm in ipairs({"HumanoidRootPart", "RightFoot", "LeftFoot", "RightLowerLeg", "LeftLowerLeg", "Right Leg", "Left Leg", "LowerTorso", "UpperTorso", "Torso"}) do
                         local bp = ch and ch:FindFirstChild(nm)
                         if bp then
-                            firetouchinterest(bp, currentPart, 0)
-                            firetouchinterest(bp, currentPart, 1)
+                            for _, tpart in ipairs(targets) do
+                                firetouchinterest(bp, tpart, 0)
+                                firetouchinterest(bp, tpart, 1)
+                            end
                         end
                     end
                 end
@@ -8238,9 +8255,32 @@ end)()
         if gd ~= lastGunObj then
             lastGunObj = gd
             gunAttempts = 0
+            SFX.gunSeenAt = os.clock()
+            SFX.gunGaveUp = false
         end
-        if gunAttempts >= 12 or hasGun() or grabbing then return end
-        if os.clock() - lastGunTry < 0.12 then return end
+        -- Bu silah için vazgeçildiyse (yeni silah düşene ya da özellik yeniden açılana kadar) deneme
+        if SFX.gunGaveUp then return end
+        -- Ölüysen deneme (süre de ölüyken işlemez; dirilince baştan sayar)
+        local humA = myHum()
+        if not humA or humA.Health <= 0 then
+            SFX.gunSeenAt = os.clock()
+            return
+        end
+        -- Önceki alma işlemi hata ile takılı kaldıysa kilidi aç
+        if grabbing and os.clock() - (SFX.grabAt or 0) > 3 then grabbing = false end
+        if hasGun() or grabbing then return end
+        if os.clock() - lastGunTry < 0.03 then return end
+        -- Silah başka birindeyse deneme
+        if gunHeldByAnotherPlayer() then
+            SFX.gunSeenAt = os.clock()
+            return
+        end
+        -- Çok denendi ya da çok süre geçti: vazgeç
+        if gunAttempts >= 12 or os.clock() - (SFX.gunSeenAt or os.clock()) > 6 then
+            SFX.gunGaveUp = true
+            gunDiag("Silah alınamadı, otomatik alma bırakıldı.")
+            return
+        end
         lastGunTry = os.clock()
         local _, attempted = gotoGun(true)
         if attempted then gunAttempts = gunAttempts + 1 end
@@ -8300,16 +8340,29 @@ end)()
                         if gunDropInfo() or hasGun() then break end
                     end
                     if not hasGun() and not gunDropInfo() then
-                        notify("Şerif Avı", "Silah düşmedi (şerif ölmedi ya da silah kayboldu).", 3)
-                        return
+                        -- Şerif hemen ölmediyse vazgeçme: silah düşene kadar bekle (en fazla 45 sn)
+                        notify("Şerif Avı", "Silah henüz düşmedi, düşmesi bekleniyor...", 3)
+                        local tw = os.clock()
+                        while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
+                            if not murderer.Parent or not isAlive(murderer) then return end
+                            local hw = myHum()
+                            if not hw or hw.Health <= 0 then return end
+                            HB:Wait()
+                        end
+                        if not hasGun() and not gunDropInfo() then
+                            notify("Şerif Avı", "Silah düşmedi (şerif ölmedi ya da silah kayboldu).", 3)
+                            return
+                        end
                     end
                 end
 
                 -- 2) Düşen silahı al: bekleme YOK, her karede ışınlan + temas (alır almaz eski yerine döner)
                 if not hasGun() then
                     local t0 = os.clock()
-                    while alive and not hasGun() and os.clock() - t0 < 5 do
+                    while alive and not hasGun() and os.clock() - t0 < 20 do
                         if not gunDropInfo() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then break end
                         gotoGun(false)
                         HB:Wait()
                     end
