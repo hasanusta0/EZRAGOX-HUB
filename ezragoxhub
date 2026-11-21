@@ -8260,6 +8260,24 @@ end)()
         return nil
     end
 
+    -- Silahı BAŞKASI aldı mı? (hayatta olan başka bir oyuncunun elinde/çantasında "Gun" var mı)
+    -- Yerdeki GunDrop nesnesi, silahı biri alsa bile bir süre daha görünür kalabiliyor; bu yüzden
+    -- sadece GunDrop'a bakmak yerine oyuncuların envanterine de bakıp anında vazgeçilir.
+    local function gunTakenByOther()
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local character = player.Character
+                local hum = character and character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    if character:FindFirstChild("Gun") then return player end
+                    local backpack = player:FindFirstChildOfClass("Backpack")
+                    if backpack and backpack:FindFirstChild("Gun") then return player end
+                end
+            end
+        end
+        return nil
+    end
+
     -- Lobide miyim? Oto silah alma SADECE haritadayken (oyundayken) çalışır:
     -- harita yoksa, lobi bölgesindeysem ya da harita sınırlarının dışındaysam lobi sayılır.
     -- Ölü ya da lobide miyim? (Otomatik silah alma bu ikisinde de ASLA çalışmamalı)
@@ -8306,7 +8324,7 @@ end)()
 
     local function gotoGun(auto)
         if grabbing then return false, false end
-        if SFX.isDeadOrLobby() then return false, false end
+        if auto and SFX.inLobby() then return false, false end
         local gd, part = gunDropInfo()
         if not gd then
             if not auto then
@@ -8319,6 +8337,8 @@ end)()
             end
             return false, false
         end
+        -- Silahı başkası zaten aldıysa hiç ışınlanma (yerdeki nesne gecikmeli kaybolabiliyor)
+        if gunTakenByOther() then return false, false end
         -- Sunucuya rol sorusu (InvokeServer) göndermeden, yerel kontrol: ölü mü / katil mi?
         -- (Eskiden burada bekleyen sorgu alımı geciktiriyor ya da eski önbellekle engelliyordu.)
         local hum0 = myHum()
@@ -8417,6 +8437,12 @@ end)()
             checkInventory()
             if finished then break end
 
+            -- Silahı başkası aldıysa 1.6 sn bekleme: ANINDA eski yerine dön
+            if gunTakenByOther() then
+                returnNow()
+                break
+            end
+
             local currentDrop, currentPart = gunDropInfo()
             if not currentDrop or not currentPart then
                 -- Silah yerden kalktıysa envanteri kontrol edip geri dön.
@@ -8466,7 +8492,7 @@ end)()
 
     local lastGunTry = 0
     local function autoGunStep()
-        if SFX.isDeadOrLobby() then return end   -- ölüyken / lobideyken otomatik silah alma yok
+        if SFX.inLobby() then return end   -- lobideyken otomatik silah alma yok
         local gd = gunDropInfo()
         if not gd then
             gunAttempts, lastGunObj = 0, nil
@@ -8547,7 +8573,8 @@ end)()
                         local tw = os.clock()
                         while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
                             if not murderer.Parent or not isAlive(murderer) then return end
-                            if SFX.isDeadOrLobby() then return end
+                            local hw = myHum()
+                            if not hw or hw.Health <= 0 then return end
                             HB:Wait()
                         end
                         if not hasGun() and not gunDropInfo() then
@@ -8562,7 +8589,8 @@ end)()
                     local t0 = os.clock()
                     while alive and not hasGun() and os.clock() - t0 < 20 do
                         if not gunDropInfo() then break end
-                        if SFX.isDeadOrLobby() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then break end
                         gotoGun(false)
                         HB:Wait()
                     end
@@ -8663,7 +8691,8 @@ end)()
                     local tw = os.clock()
                     while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
                         if not gunHeldByAnotherPlayer() then break end
-                        if SFX.isDeadOrLobby() then return end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then return end
                         HB:Wait()
                     end
                     if not hasGun() and not gunDropInfo() then
@@ -8677,7 +8706,8 @@ end)()
                     local t0 = os.clock()
                     while alive and not hasGun() and os.clock() - t0 < 20 do
                         if not gunDropInfo() then break end
-                        if SFX.isDeadOrLobby() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then break end
                         gotoGun(false)
                         HB:Wait()
                     end
