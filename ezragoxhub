@@ -5716,6 +5716,7 @@ local FeaturesPage = createTab("Özellikler", "")
             local now = os.clock()
             if pl and pl == lastClickPl and now - lastClickT < 0.4 then
                 lastClickPl = nil
+                Settings.SetFlingTarget(pl)
                 flingTarget(pl)
             else
                 lastClickPl, lastClickT = pl, now
@@ -5774,6 +5775,17 @@ local FeaturesPage = createTab("Özellikler", "")
         return best
     end
 
+    -- Bir oyuncuya tıklayıp fling yapınca (etiket menüsü / çift tık / Troll sekmesi) ismi otomatik olarak
+    -- FIRLATMA bölümlerindeki isim kutularına yazılır; fırlatma tuşu artık o oyuncuyu fırlatır.
+    Settings.FlingBoxes = Settings.FlingBoxes or {}
+    Settings.SetFlingTarget = function(plr)
+        if not plr or not plr.Parent then return end
+        Settings.FlingPicked = plr
+        for _, box in ipairs(Settings.FlingBoxes) do
+            if box and box.Parent then pcall(setText, box, plr.Name) end
+        end
+    end
+
     local function addSelector(page)
         local selRow = baseRow(page, "Frame", 48)
         rowLabel(selRow, "🎯  Oyuncu Seç")
@@ -5785,6 +5797,10 @@ local FeaturesPage = createTab("Özellikler", "")
         }, selRow)
         corner(selBox, 8)
         stroke(selBox, 1, Color3.fromRGB(55, 65, 95), 0.3)
+        Settings.FlingBoxes[#Settings.FlingBoxes + 1] = selBox
+        if Settings.FlingPicked and Settings.FlingPicked.Parent then
+            pcall(setText, selBox, Settings.FlingPicked.Name)   -- daha önce seçilmiş oyuncu varsa kutuyu doldur
+        end
         local selList = new("ScrollingFrame", {
             LayoutOrder = nextOrder(page), Size = UDim2.new(1, 0, 0, 0),
             BackgroundColor3 = Color3.fromRGB(15, 18, 28), BackgroundTransparency = 0.05, BorderSizePixel = 0,
@@ -8121,7 +8137,10 @@ end)()
     local flingTarget = Settings.FlingKit.fling
 
     -- Troll sekmesindeki 14. özellik de aynı fırlatmayı kullanır (yalnızca MM2'de var)
-    Settings.MM2FlingPlayer = function(plr) flingTarget(plr) end
+    Settings.MM2FlingPlayer = function(plr)
+        if Settings.SetFlingTarget then Settings.SetFlingTarget(plr) end
+        flingTarget(plr)
+    end
 
     ---------------------------------------------------------
     -- DÜŞEN SİLAHA IŞINLANMA
@@ -8521,6 +8540,90 @@ end)()
                 end
             end)
             SFX.snipeBusy = false
+        end)
+    end
+
+    ---------------------------------------------------------
+    -- SİLAH TUŞU (tek tuş):
+    --  • Silah yerdeyse   → ışınlanıp alır, eski yerine döner
+    --  • Silah birindeyse → o kişiye fling atar; silah düşünce alır
+    ---------------------------------------------------------
+    SFX.gunKeyBusy = false
+    function SFX.gunKey()
+        if SFX.gunKeyBusy then
+            notify("Bekle", "Silah işlemi sürüyor.", 2)
+            return
+        end
+        if hasGun() then
+            notify("Silah", "Silah zaten sende.", 2)
+            return
+        end
+        local role, dead = myRole()
+        if dead then notify("Silah", "Ölüsün.", 2) return end
+        if role == "Murderer" then notify("Silah", "Katilsin: silah alamazsın.", 3) return end
+
+        -- Silah yerdeyse direkt al
+        if gunDropInfo() then
+            task.spawn(function() gotoGun(false) end)
+            return
+        end
+        local holder = gunHeldByAnotherPlayer()
+        if not holder then
+            notify("Yerde silah yok!", "Silahın düşmesini bekle.", 3)
+            return
+        end
+
+        SFX.gunKeyBusy = true
+        task.spawn(function()
+            local HB = RunService.Heartbeat
+            pcall(function()
+                -- 1) Silahı taşıyan kişiye fling at (öldürme modu: ölünce silah düşer)
+                for _ = 1, 4 do
+                    local h = gunHeldByAnotherPlayer()
+                    if not h then break end            -- silah artık kimsede değil (yere düşmüş olabilir)
+                    notify("Silah", h.DisplayName .. " silahı taşıyor, fırlatılıyor...", 1.5)
+                    flingTarget(h, true)
+                    local t0 = os.clock()
+                    while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 9 do HB:Wait() end
+                    local t1 = os.clock()
+                    while alive and not gunDropInfo() and not hasGun() and os.clock() - t1 < 2 do HB:Wait() end
+                    if gunDropInfo() or hasGun() then break end
+                end
+
+                -- 2) Silah hemen düşmediyse düşene kadar bekle (en fazla 45 sn)
+                if not hasGun() and not gunDropInfo() then
+                    notify("Silah", "Silah henüz düşmedi, düşmesi bekleniyor...", 3)
+                    local tw = os.clock()
+                    while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
+                        if not gunHeldByAnotherPlayer() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then return end
+                        HB:Wait()
+                    end
+                    if not hasGun() and not gunDropInfo() then
+                        notify("Silah", "Silah düşmedi (kişi ölmedi ya da silah kayboldu).", 3)
+                        return
+                    end
+                end
+
+                -- 3) Düşen silahı al (her karede ışınlan + temas; alır almaz eski yerine döner)
+                if not hasGun() then
+                    local t0 = os.clock()
+                    while alive and not hasGun() and os.clock() - t0 < 20 do
+                        if not gunDropInfo() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then break end
+                        gotoGun(false)
+                        HB:Wait()
+                    end
+                end
+                if hasGun() then
+                    notify("Silah", "Silah alındı!", 2)
+                else
+                    notify("Silah", "Silah alınamadı.", 3)
+                end
+            end)
+            SFX.gunKeyBusy = false
         end)
     end
 
@@ -11368,7 +11471,7 @@ end)()
     end)
     keyRow("Silaha Işınlanma Tuşu", "MM2GunKey")
     createButton(MM2Page, "📍  Silaha Işınlan (Şimdi)", function()
-        gotoGun(false)
+        SFX.gunKey()
     end)
 
     useMM2Category("GENEL")
@@ -15168,7 +15271,7 @@ end)()
         if hotkeyMatches(input, Settings.MM2ShootKey, Settings.MM2ShootMouse) then
             shootTarget()
         elseif hotkeyMatches(input, Settings.MM2GunKey, Settings.MM2GunMouse) then
-            task.spawn(function() gotoGun(false) end)
+            if SFX.gunKey then SFX.gunKey() end
         elseif SFX.knifeOn and hotkeyMatches(input, Settings.MM2KnifeKey, Settings.MM2KnifeMouse) then
             SFX.throwNearest()
         elseif hotkeyMatches(input, Settings.MM2InvisKey, Settings.MM2InvisMouse) then
@@ -15244,7 +15347,7 @@ end)()
                 if Settings.MM2ShootMouse == M3 then
                     shootTarget()
                 elseif Settings.MM2GunMouse == M3 then
-                    task.spawn(function() gotoGun(false) end)
+                    if SFX.gunKey then SFX.gunKey() end
                 elseif SFX.knifeOn and Settings.MM2KnifeMouse == M3 then
                     SFX.throwNearest()
                 elseif Settings.MM2InvisMouse == M3 then
