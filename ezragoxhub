@@ -7382,7 +7382,7 @@ end)()
     local shotToken = 0
     SFX.shootLeftOn = false   -- Sol tıkla keskin vuruş anahtarı (yerel değişken sınırına takılmamak için tabloda)
     local lastLosWarn = 0
-    local function shootTarget(forceWall)
+    local function shootTarget(forceWall, onceOnly)
         -- forceWall = true: duvar arkası vuruş tuşuyla basıldı; "Duvar Arkası Vuruş" anahtarı kapalı olsa da bu atış duvarları yok sayar (premium)
         if forceWall == true and not Settings.PremiumActive and os.clock() - (SFX.premWarnAt or 0) > 4 then
             SFX.premWarnAt = os.clock()
@@ -7480,7 +7480,7 @@ end)()
                     end
                     -- Varsayılan: BİR basış = BİR atış (kendi kendine tekrar ateş etmez).
                     -- "Iskalarsa Otomatik Tekrar Vur" açıksa sonucu bekleyip gerekirse yeniden vurur.
-                    if not SFX.retryOn then return end
+                    if onceOnly or not SFX.retryOn then return end
                     local waitT = 0.6 + getPingSeconds()
                     local t0 = os.clock()
                     while os.clock() - t0 < waitT do
@@ -8262,6 +8262,21 @@ end)()
 
     -- Lobide miyim? Oto silah alma SADECE haritadayken (oyundayken) çalışır:
     -- harita yoksa, lobi bölgesindeysem ya da harita sınırlarının dışındaysam lobi sayılır.
+    -- Ölü ya da lobide miyim? (Otomatik silah alma bu ikisinde de ASLA çalışmamalı)
+    -- Sadece Humanoid.Health'e değil, oyunun kendi Rol/Ölü bilgisine de bakar: bazen tur bitip
+    -- lobiye dönerken Can hemen 100'e dönse bile oyunun rol verisi henüz "tur yok" diyebilir.
+    function SFX.isDeadOrLobby()
+        local hum = myHum()
+        if not hum or hum.Health <= 0 then return true end
+        -- Not: rol verisi (myRole) ara sıra geçici olarak boş dönebiliyor (sunucu sorgusu / ağ sıkışması);
+        -- bunu "lobidesin" saymak silahı GEÇ ya da HİÇ almamasına yol açıyordu. Yalnızca sunucunun açıkça
+        -- "öldün" dediği durum (Dead=true) ve konuma dayalı gerçek lobi kontrolü (inLobby) kullanılır.
+        local _, dead = myRole()
+        if dead then return true end
+        if SFX.inLobby() then return true end
+        return false
+    end
+
     function SFX.inLobby()
         local m
         pcall(function() m = findMap() end)
@@ -8291,7 +8306,7 @@ end)()
 
     local function gotoGun(auto)
         if grabbing then return false, false end
-        if auto and SFX.inLobby() then return false, false end
+        if SFX.isDeadOrLobby() then return false, false end
         local gd, part = gunDropInfo()
         if not gd then
             if not auto then
@@ -8451,7 +8466,7 @@ end)()
 
     local lastGunTry = 0
     local function autoGunStep()
-        if SFX.inLobby() then return end   -- lobideyken otomatik silah alma yok
+        if SFX.isDeadOrLobby() then return end   -- ölüyken / lobideyken otomatik silah alma yok
         local gd = gunDropInfo()
         if not gd then
             gunAttempts, lastGunObj = 0, nil
@@ -8532,8 +8547,7 @@ end)()
                         local tw = os.clock()
                         while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
                             if not murderer.Parent or not isAlive(murderer) then return end
-                            local hw = myHum()
-                            if not hw or hw.Health <= 0 then return end
+                            if SFX.isDeadOrLobby() then return end
                             HB:Wait()
                         end
                         if not hasGun() and not gunDropInfo() then
@@ -8548,8 +8562,7 @@ end)()
                     local t0 = os.clock()
                     while alive and not hasGun() and os.clock() - t0 < 20 do
                         if not gunDropInfo() then break end
-                        local hw = myHum()
-                        if not hw or hw.Health <= 0 then break end
+                        if SFX.isDeadOrLobby() then break end
                         gotoGun(false)
                         HB:Wait()
                     end
@@ -8559,22 +8572,28 @@ end)()
                     end
                 end
 
-                -- 3) Katili vur: ilk atış hemen; sonra silahın bekleme süresine uygun aralıkla tekrar
-                local t0 = os.clock()
-                while alive and os.clock() - t0 < 6 do
-                    if not murderer.Parent or not isAlive(murderer) then break end
-                    if not hasGun() then break end
-                    shootTarget(true)
-                    local t1 = os.clock()
-                    while os.clock() - t1 < 0.45 and alive do
-                        if not murderer.Parent or not isAlive(murderer) then break end
+                -- 3) Katili vur: silah Character'a tam geçer geçmez TEK atış yapılır; bekleme veya tekrar yok.
+                local gun2 = findGun()
+                if gun2 then
+                    local hum1 = myHum()
+                    local tE = os.clock()
+                    while alive and gun2.Parent ~= LocalPlayer.Character and os.clock() - tE < 1 do
+                        if hum1 then pcall(function() hum1:EquipTool(gun2) end) end
                         HB:Wait()
                     end
+                end
+                if murderer.Parent and isAlive(murderer) and hasGun() then
+                    shootTarget(true, true)   -- onceOnly = true: ıskalasa da tekrar vurmaz
+                end
+                local tW = os.clock()
+                while alive and os.clock() - tW < 0.4 do
+                    if not murderer.Parent or not isAlive(murderer) then break end
+                    HB:Wait()
                 end
                 if not murderer.Parent or not isAlive(murderer) then
                     notify("Şerif Avı", "Katil vuruldu!", 3)
                 else
-                    notify("Şerif Avı", "Katil vurulamadı.", 3)
+                    notify("Şerif Avı", "Katil vurulamadı (tek atış denendi).", 3)
                 end
             end)
             SFX.snipeBusy = false
@@ -8644,8 +8663,7 @@ end)()
                     local tw = os.clock()
                     while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
                         if not gunHeldByAnotherPlayer() then break end
-                        local hw = myHum()
-                        if not hw or hw.Health <= 0 or SFX.inLobby() then return end
+                        if SFX.isDeadOrLobby() then return end
                         HB:Wait()
                     end
                     if not hasGun() and not gunDropInfo() then
@@ -8659,8 +8677,7 @@ end)()
                     local t0 = os.clock()
                     while alive and not hasGun() and os.clock() - t0 < 20 do
                         if not gunDropInfo() then break end
-                        local hw = myHum()
-                        if not hw or hw.Health <= 0 then break end
+                        if SFX.isDeadOrLobby() then break end
                         gotoGun(false)
                         HB:Wait()
                     end
