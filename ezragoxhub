@@ -5429,7 +5429,7 @@ local FeaturesPage = createTab("Özellikler", "")
     -- aynı Seated state açıp kapatma, aynı "GettingUp" ile geri dönüş döngüsü.
     -- Tek fark: YARHM'deki "Oyuncu zaten flung, tekrar fırlatılsın mı?" onay penceresi burada
     -- yok (bu scriptte YARHM'deki gibi bir dialog sistemi yok), o yüzden doğrudan devam eder.
-    local function flingTarget(plr)
+    local function flingTarget(plr, killMode)
         if mm2FlingBusy then
             notify("Bekle", "Önceki fırlatma hâlâ sürüyor.", 2)
             return
@@ -5486,16 +5486,26 @@ local FeaturesPage = createTab("Özellikler", "")
                 end
 
                 local FPos = function(BasePart, Pos, Ang)
+                    if killMode then
+                        -- ÖLDÜRME MODU: hep hedefin ÜSTÜNDEN çarp ve hızı AŞAĞI ver: hedef yukarı/yana uçup
+                        -- havada kalmak yerine haritanın altındaki boşluğa (düşme yüksekliğinin altına) gider ve ölür.
+                        Pos = CFrame.new(Pos.X, math.abs(Pos.Y) + 0.5, Pos.Z)
+                    end
                     RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
                     Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-                    RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                    if killMode then
+                        RootPart.Velocity = Vector3.new(9e5, -9e8, 9e5)
+                    else
+                        RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                    end
                     RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
                 end
 
                 local SFBasePart = function(BasePart)
-                    local TimeToWait = 2
+                    local TimeToWait = killMode and 3 or 2
                     local Time = tick()
                     local Angle = 0
+                    local startY = BasePart.Position.Y
 
                     repeat
                         if RootPart and THumanoid then
@@ -5554,6 +5564,7 @@ local FeaturesPage = createTab("Özellikler", "")
                             break
                         end
                     until BasePart.Velocity.Magnitude > 500
+                        or (killMode and BasePart.Position.Y < startY - 60)   -- hedef yere gömülüp aşağı düşüyor: bırak, kendi kendine ölsün
                         or BasePart.Parent ~= TargetPlayer.Character
                         or TargetPlayer.Parent ~= Players
                         or TargetPlayer.Character ~= TCharacter
@@ -5590,6 +5601,15 @@ local FeaturesPage = createTab("Özellikler", "")
 
                 BV:Destroy()
                 Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+                if killMode and THumanoid then
+                    -- kendimi hemen eski yerime al, hedefin düşüp ölmesini (en fazla 1.5 sn) buradan izle
+                    pcall(function()
+                        RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
+                        RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
+                    end)
+                    local tk = os.clock()
+                    while os.clock() - tk < 1.5 and THumanoid.Parent and THumanoid.Health > 0 do task.wait() end
+                end
                 workspace.CurrentCamera.CameraSubject = Humanoid
 
                 repeat
@@ -7310,6 +7330,10 @@ end)()
     local lastLosWarn = 0
     local function shootTarget(forceWall)
         -- forceWall = true: duvar arkası vuruş tuşuyla basıldı; "Duvar Arkası Vuruş" anahtarı kapalı olsa da bu atış duvarları yok sayar (premium)
+        if forceWall == true and not Settings.PremiumActive and os.clock() - (SFX.premWarnAt or 0) > 4 then
+            SFX.premWarnAt = os.clock()
+            pcall(notifyTop, "👑 Katilin yanına ışınlanıp vurma PREMİUM özelliktir; premium aktif değil, normal atış yapılıyor.", 5)
+        end
         forceWall = (forceWall == true) and Settings.PremiumActive and true or false
         if os.clock() - lastShot < 0.35 then return end
         -- Silah çantandaysa da çalışır: ateşten önce silah otomatik ele alınır (fireGunAt içinde).
@@ -7368,7 +7392,12 @@ end)()
                     -- Duvar modunda hedef görünmüyorsa: kısa süre görüş hattı olan bir noktaya ışınlan, ateş et, geri dön
                     if (forceWall or (wallOn and Settings.PremiumActive)) and SFX.peekOn then
                         local okP, resP = pcall(SFX.peekFire, part, hum)
-                        if okP and resP ~= nil then fired = resP end
+                        if okP and resP ~= nil then
+                            fired = resP
+                        elseif SFX.peekWhy then
+                            SFX.peekWhyAt = os.clock()
+                            pcall(notifyTop, "🧱 Işınlanıp vurulamadı (" .. SFX.peekWhy .. "): normal atış yapılıyor.", 4)
+                        end
                     end
                     if fired == nil then
                         local _, fired2 = pcall(fireGunAt, function()
@@ -7417,6 +7446,7 @@ end)()
     SFX.peekOn = true
     SFX.peekSpeed = 0.7   -- Işınlanma Hızı (0..1)
     SFX.peekBusy = false
+    SFX.peekAlways = true   -- true: görüş olsa bile her atışta katilin YANINA ışınlanıp vurur, sonra geri döner
     function SFX.findPeekSpot(aim)
         local me = myHRP()
         if not me then return nil end
@@ -7427,23 +7457,28 @@ end)()
         local gp = RaycastParams.new()
         gp.FilterType = Enum.RaycastFilterType.Exclude
         gp.FilterDescendantsInstances = charsList()
-        -- Görüş hattı olan boş noktalardan BANA EN YAKIN olanı seçilir (kısa atlayış = ekranda / diğer oyuncularda daha az fark edilir)
-        local best, bestD
-        for _, r in ipairs({7, 11, 15, 20}) do
-            for i = 0, 7 do
-                local a = math.rad(i * 45)
-                local c = aim + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
-                local d = (c - me.Position).Magnitude
-                if not bestD or d < bestD then   -- daha uzak adaylarda pahalı kontrolleri yapma
-                    local okFree, parts = pcall(function() return workspace:GetPartBoundsInRadius(c, 2.4, op) end)
-                    local free = okFree and #parts == 0
-                    if free and workspace:Raycast(c, Vector3.new(0, -14, 0), gp) and hasLineOfSight(c, aim) then
-                        best, bestD = c, d
+        local function okSpot(c, needGround)
+            local okFree, parts = pcall(function() return workspace:GetPartBoundsInRadius(c, 2.4, op) end)
+            if not (okFree and #parts == 0) then return false end
+            if needGround and not workspace:Raycast(c, Vector3.new(0, -14, 0), gp) then return false end
+            return hasLineOfSight(c, aim)
+        end
+        -- Katile EN YAKIN, görüş hattı olan boş nokta (önce zeminli, bulunamazsa zemin şartsız)
+        for pass = 1, 2 do
+            for _, r in ipairs({3.5, 5, 7, 9, 12, 16, 20}) do
+                local best, bestD
+                for i = 0, 7 do
+                    local a = math.rad(i * 45)
+                    local c = aim + Vector3.new(math.cos(a) * r, 0, math.sin(a) * r)
+                    if okSpot(c, pass == 1) then
+                        local d = (c - me.Position).Magnitude
+                        if not bestD or d < bestD then best, bestD = c, d end
                     end
                 end
+                if best then return best end
             end
         end
-        return best
+        return nil
     end
 
     -- Hedef bulunduğum yerden görünmüyor mu?
@@ -7455,10 +7490,24 @@ end)()
 
     -- nil = ışınlanma gerekmedi / yapılamadı (normal atışa devam); true/false = ışınlanıp ateş edildi (sonuç)
     function SFX.peekFire(part, hum)
-        if SFX.invisOn or SFX.peekBusy then return nil end
+        SFX.peekWhy = nil
+        local ok, res = pcall(SFX.peekFireRaw, part, hum)
+        if not ok then
+            SFX.peekBusy = false
+            pcall(function() RunService:UnbindFromRenderStep("EZRAGOX_PeekCam") end)
+            SFX.peekWhy = "hata: " .. string.sub(tostring(res), 1, 90)
+            return nil
+        end
+        return res
+    end
+
+    function SFX.peekFireRaw(part, hum)
+        if SFX.invisOn then SFX.peekWhy = "Görünmezlik açık (kapat)" return nil end
+        -- takılı kalmış kilit olursa 4 sn sonra otomatik aç
+        if SFX.peekBusy and os.clock() - (SFX.peekBusyAt or 0) < 4 then SFX.peekWhy = "önceki ışınlanma sürüyor" return nil end
         local gun = findGun()
         local ch = LocalPlayer.Character
-        if not (gun and ch) then return nil end
+        if not (gun and ch) then SFX.peekWhy = "silah ya da karakter yok" return nil end
         -- Silahı ışınlanmadan ÖNCE ele al (ışınlanma süresi kısa kalsın)
         local hum0 = myHum()
         if hum0 and gun.Parent ~= ch then
@@ -7470,38 +7519,34 @@ end)()
             end
             task.wait(0.08)
         end
-        if gun.Parent ~= ch then return nil end
+        if gun.Parent ~= ch then SFX.peekWhy = "silah ele alınamadı" return nil end
         local me = myHRP()
-        if not me then return nil end
+        if not me then SFX.peekWhy = "karakter yok" return nil end
         local aim = aimPoint(part, hum)
-        if SFX.targetVisible(me.Position, part, aim) then return nil end   -- görüş var: ışınlanmaya gerek yok
+        if not SFX.peekAlways and SFX.targetVisible(me.Position, part, aim) then return nil end   -- "her zaman" kapalıysa: görüş varsa ışınlanma
         local spot = SFX.findPeekSpot(aim)
-        if not spot then return nil end
+        if not spot then
+            -- Uygun boş nokta bulunamadı: yine de katilin 4 stud yanına (bana bakan taraf) ışınlan
+            local dv = Vector3.new(me.Position.X - aim.X, 0, me.Position.Z - aim.Z)
+            dv = dv.Magnitude > 0.1 and dv.Unit or Vector3.new(1, 0, 0)
+            spot = aim + dv * 4
+        end
 
         SFX.peekBusy = true
+        SFX.peekBusyAt = os.clock()
         local back = me.CFrame
         local ping = getPingSeconds()
         local fired = false
         -- Işınlanma Hızı ayarı (0 = en güvenli / yavaş, 1 = en hızlı): bekleme sürelerini kısaltır
         local spd = math.clamp(tonumber(SFX.peekSpeed) or 0.7, 0, 1)
-        local preWait = (ping * 0.5 + 0.07) * (1 - 0.55 * spd)
-        local postWait = (0.1 + ping) * (1 - 0.6 * spd)
-        -- Kamerayı dondur: karakter kısa süre başka yerde olsa da kendi ekranında kamera sıçramaz
-        local CAM_BIND = "EZRAGOX_PeekCam"
-        local function unfreezeCam() pcall(function() RunService:UnbindFromRenderStep(CAM_BIND) end) end
-        do
-            local cam = workspace.CurrentCamera
-            local camCF = cam and cam.CFrame
-            if camCF then
-                pcall(function()
-                    RunService:BindToRenderStep(CAM_BIND, Enum.RenderPriority.Camera.Value + 2, function()
-                        local c = workspace.CurrentCamera
-                        if c then c.CFrame = camCF end
-                    end)
-                end)
-                task.delay(1.5, unfreezeCam)   -- ne olursa olsun kamera serbest kalsın
-            end
-        end
+        -- Sunucunun yeni konumumu görüp atışı kabul etmesi için bekleme (kısa kalırsa mermi gitmez)
+        local preWait = (ping * 0.75 + 0.12) * (1 - 0.45 * spd)
+        local postWait = (0.14 + ping) * (1 - 0.5 * spd)
+        -- (Kamera artık DONDURULMUYOR: önceki sürümde kamerayı sabitliyorduk, bu da ışınlanma gerçekten
+        -- olsa bile kendi ekranında hiçbir şey oynamıyormuş gibi görünmesine yol açıyordu. Kamera şimdi
+        -- karakteri normal şekilde takip ediyor: kısa bir sıçrama göreceksin, bu ışınlanmanın GERÇEKTEN
+        -- çalıştığının kanıtı.
+        local function unfreezeCam() end
         pcall(function()
             me.AssemblyLinearVelocity = Vector3.zero
             me.AssemblyAngularVelocity = Vector3.zero
@@ -7526,7 +7571,6 @@ end)()
                 me2.CFrame = back
             end
         end)
-        unfreezeCam()
         SFX.peekBusy = false
         return fired
     end
@@ -7653,7 +7697,11 @@ end)()
         if not (part and hum and hum.Health > 0) then return nil end
         -- Duvar modu + kısa ışınlanma açıksa ve hedef görünmüyorsa: gerçek atışı iptal et (silah beklemeye girmesin),
         -- yerine ışınlanmalı atış yapılacak
-        if premiumWall and SFX.peekOn and not SFX.invisOn and SFX.peekNeeded(part, hum) then
+        if premiumWall and SFX.peekOn and SFX.invisOn and os.clock() - (SFX.peekWhyAt or 0) > 4 then
+            SFX.peekWhyAt = os.clock()
+            pcall(notifyTop, "🧱 Görünmezlik açıkken ışınlanıp vurma çalışmaz, normal atış yapılıyor.", 4)
+        end
+        if premiumWall and SFX.peekOn and not SFX.invisOn and (SFX.peekAlways or SFX.peekNeeded(part, hum)) then
             return "swallow"
         end
         local handle
@@ -8408,17 +8456,17 @@ end)()
                 -- 1) Şerifi fırlat (silah zaten bende veya yerdeyse bu adım atlanır).
                 --    Tüm beklemeler KARE bazlı: silah düştüğü karede bir sonraki adıma geçilir.
                 if not hasGun() and not gunDropInfo() then
-                    for round = 1, 2 do
+                    for round = 1, 4 do
                         local sheriff = findRole("Sheriff", true)
                         if not sheriff then break end
                         notify("Şerif Avı", sheriff.DisplayName .. " fırlatılıyor...", 1.5)
-                        flingTarget(sheriff)   -- fling meşgul bayrağını anında kurar
+                        flingTarget(sheriff, true)   -- true = ÖLDÜRME MODU (aşağı doğru, direkt ölsün); fling meşgul bayrağını anında kurar
                         local t0 = os.clock()
                         -- fırlatma bitene kadar (fling'in geri dönüşü bitmeden silaha gitme)
                         while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 9 do HB:Wait() end
                         -- silah düşene kadar kare kare bekle (en fazla 3 sn)
                         local t1 = os.clock()
-                        while alive and not gunDropInfo() and not hasGun() and os.clock() - t1 < 3 do HB:Wait() end
+                        while alive and not gunDropInfo() and not hasGun() and os.clock() - t1 < 2 do HB:Wait() end
                         if gunDropInfo() or hasGun() then break end
                     end
                     if not hasGun() and not gunDropInfo() then
@@ -9861,13 +9909,16 @@ end)()
             notify("Duvar Arkası Vuruş", "Aktif! Haritada nerede olursan ol, ateş edince katile direkt gider.", 4)
         end
     end, false)
-    SFX.peekToggleName = "🧱  Duvar Arkası: Görüş Yoksa Kısa Işınlanıp Vur (Önerilir)"   -- yerel değişken sınırı için tabloda
+    SFX.peekToggleName = "🧱  Duvar Arkası: Katilin Yanına Işınlanıp Vur, Geri Dön (Önerilir)"   -- yerel değişken sınırı için tabloda
     SFX.peekOn = savedOr(SFX.peekToggleName, true)
     createToggle(MM2Page, SFX.peekToggleName, SFX.peekOn, function(v)
         SFX.peekOn = v
         if v then
-            notify("Duvar Arkası", "Hedef duvar arkasındaysa karakter çok kısa süre görüşü açık bir noktaya ışınlanıp ateş eder, sonra geri döner.", 5)
+            notify("Duvar Arkası", "Ateş edince karakter katilin yanındaki açık bir noktaya ışınlanıp vurur, sonra geri döner.", 5)
         end
+    end)
+    createToggle(MM2Page, "🎯  Görüş Olsa Bile Katilin Yanına Işınlan", true, function(v)
+        SFX.peekAlways = v and true or false
     end)
     createSlider(MM2Page, "⚡  Işınlanma Hızı (%)  •  vurmuyorsa azalt, belli oluyorsa artır", 0, 100, 70, function(v)
         SFX.peekSpeed = (tonumber(v) or 70) / 100
@@ -16106,13 +16157,162 @@ createSection(FeaturesPage, "EKRAN GENİŞLETME")
         end)
     end
 
+    ---------------------------------------------------------
+    -- 💬 SOHBET BALONU DÜZELTME: Geniş ekranda kafa üstü balonlar gerilip okunamaz hale geliyordu.
+    -- Geniş ekran açıkken oyunun balonları gizlenir; mesajlar ScreenGui katmanında, normal boyutta
+    -- ve oyuncunun kafasının üstünde çizilir (kamera gerilmesinden etkilenmez).
+    ---------------------------------------------------------
+    local bubbleOn = true
+    local bubbles = {}              -- [Oyuncu] = {fr = Frame, exp = bitiş zamanı}
+    local bubbleLayer, bubbleActive, savedBubbleEnabled = nil, false, nil
+    local bubbleConns = {}
+    local BUBBLE_BIND = "EZRAGOX_ChatBubbleFix"
+
+    local function clearBubbles()
+        for pl, b in pairs(bubbles) do
+            pcall(function() b.fr:Destroy() end)
+            bubbles[pl] = nil
+        end
+    end
+
+    local function showBubble(plr, text)
+        if not (bubbleActive and plr and type(text) == "string") then return end
+        text = string.gsub(text, "^%s+", "")
+        text = string.gsub(text, "%s+$", "")
+        if text == "" then return end
+        if #text > 140 then text = string.sub(text, 1, 140) .. "…" end
+        if not (bubbleLayer and bubbleLayer.Parent) then
+            bubbleLayer = Instance.new("ScreenGui")
+            bubbleLayer.Name = "EZRAGOX_ChatBubbleLayer"
+            bubbleLayer.ResetOnSpawn = false
+            bubbleLayer.IgnoreGuiInset = true
+            bubbleLayer.DisplayOrder = 9998
+            bubbleLayer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+            bubbleLayer.Parent = ScreenGui.Parent or CoreGui
+        end
+        if bubbles[plr] then pcall(function() bubbles[plr].fr:Destroy() end) end
+        local fr = new("Frame", {
+            AnchorPoint = Vector2.new(0.5, 1), AutomaticSize = Enum.AutomaticSize.XY,
+            Size = UDim2.fromOffset(0, 0), BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+            BackgroundTransparency = 0.06, BorderSizePixel = 0, Visible = false, ZIndex = 5,
+        }, bubbleLayer)
+        new("UICorner", {CornerRadius = UDim.new(0, 12)}, fr)
+        new("UIPadding", {PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 10)}, fr)
+        local lab = new("TextLabel", {
+            AutomaticSize = Enum.AutomaticSize.XY, Size = UDim2.fromOffset(0, 0), BackgroundTransparency = 1,
+            Font = Enum.Font.GothamMedium, TextSize = 15, TextWrapped = true, RichText = false,
+            TextColor3 = Color3.fromRGB(25, 27, 31), Text = text, ZIndex = 6,
+            TextXAlignment = Enum.TextXAlignment.Center,
+        }, fr)
+        new("UISizeConstraint", {MaxSize = Vector2.new(230, 1000)}, lab)
+        bubbles[plr] = {fr = fr, exp = os.clock() + math.clamp(4 + #text * 0.07, 5, 12)}
+    end
+
+    local function bubbleStep()
+        local cam = workspace.CurrentCamera
+        local now = os.clock()
+        for pl, b in pairs(bubbles) do
+            if now > b.exp or not b.fr.Parent or not pl.Parent then
+                pcall(function() b.fr:Destroy() end)
+                bubbles[pl] = nil
+            else
+                local head = pl.Character and pl.Character:FindFirstChild("Head")
+                local show = false
+                if head and cam then
+                    local p, vis = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 2.4, 0))
+                    local dist = (cam.CFrame.Position - head.Position).Magnitude
+                    if vis and p.Z > 0 and dist < 120 then
+                        show = true
+                        b.fr.Position = UDim2.fromOffset(p.X, p.Y)
+                    end
+                end
+                b.fr.Visible = show
+            end
+        end
+    end
+
+    local function bubbleRefresh()
+        local want = (alive and on and bubbleOn) and true or false
+        if want == bubbleActive then return end
+        bubbleActive = want
+        if want then
+            -- Oyunun kendi (gerilen) balonlarını gizle
+            pcall(function()
+                local cfg = game:GetService("TextChatService"):FindFirstChildOfClass("BubbleChatConfiguration")
+                if cfg then
+                    if savedBubbleEnabled == nil then
+                        savedBubbleEnabled = {Enabled = cfg.Enabled, MaxBubbles = cfg.MaxBubbles, BubbleDuration = cfg.BubbleDuration}
+                    end
+                    -- "Enabled = false" bazı Roblox sürümlerinde hiçbir şey yapmıyor (bilinen bir motor hatası).
+                    -- MaxBubbles = 0 ve BubbleDuration = 0 çok daha güvenilir: oyunun kendi (gerilen) balonu hiç oluşmuyor.
+                    cfg.Enabled = false
+                    cfg.MaxBubbles = 0
+                    cfg.BubbleDuration = 0
+                end
+            end)
+            pcall(function()
+                local TCS = game:GetService("TextChatService")
+                if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+                    bubbleConns[#bubbleConns + 1] = TCS.MessageReceived:Connect(function(msg)
+                        local src = msg.TextSource
+                        if not src then return end
+                        local ch = msg.TextChannel
+                        if ch and string.find(string.lower(ch.Name), "whisper", 1, true) then return end
+                        showBubble(Players:GetPlayerByUserId(src.UserId), msg.Text)
+                    end)
+                else
+                    local function hookP(pl)
+                        bubbleConns[#bubbleConns + 1] = pl.Chatted:Connect(function(m) showBubble(pl, m) end)
+                    end
+                    for _, pl in ipairs(Players:GetPlayers()) do hookP(pl) end
+                    bubbleConns[#bubbleConns + 1] = Players.PlayerAdded:Connect(hookP)
+                end
+            end)
+            pcall(function() RunService:UnbindFromRenderStep(BUBBLE_BIND) end)
+            -- Geniş ekran kamerayı Last önceliğinde sıkıştırır; konum ondan SONRA hesaplanır
+            RunService:BindToRenderStep(BUBBLE_BIND, Enum.RenderPriority.Last.Value + 1, function()
+                if not (alive and bubbleActive) then return end
+                -- Roblox bazen Enabled/MaxBubbles'ı kendiliğinden eski haline döndürüyor: her karede yeniden bastır
+                pcall(function()
+                    local cfg = game:GetService("TextChatService"):FindFirstChildOfClass("BubbleChatConfiguration")
+                    if cfg and (cfg.Enabled or cfg.MaxBubbles ~= 0) then
+                        cfg.Enabled = false
+                        cfg.MaxBubbles = 0
+                        cfg.BubbleDuration = 0
+                    end
+                end)
+                bubbleStep()
+            end)
+        else
+            for _, c in ipairs(bubbleConns) do pcall(function() c:Disconnect() end) end
+            bubbleConns = {}
+            pcall(function() RunService:UnbindFromRenderStep(BUBBLE_BIND) end)
+            clearBubbles()
+            if bubbleLayer then pcall(function() bubbleLayer:Destroy() end) bubbleLayer = nil end
+            pcall(function()
+                local cfg = game:GetService("TextChatService"):FindFirstChildOfClass("BubbleChatConfiguration")
+                if cfg and savedBubbleEnabled ~= nil then
+                    cfg.Enabled = savedBubbleEnabled.Enabled
+                    cfg.MaxBubbles = savedBubbleEnabled.MaxBubbles
+                    cfg.BubbleDuration = savedBubbleEnabled.BubbleDuration
+                end
+                savedBubbleEnabled = nil
+            end)
+        end
+    end
+
     createToggle(FeaturesPage, "🖥️  Ekranı Yatay Genişlet (Geniş Ekran)", false, function(v)
         on = v
         if v then start() else unbind() end
+        bubbleRefresh()
     end)
     createSlider(FeaturesPage, "↔️  Genişlik", 5, 60, amount, function(v)
         amount = v
     end, "%")
+    createToggle(FeaturesPage, "💬  Geniş Ekranda Sohbet Balonlarını Düzelt (Okunur Yap)", true, function(v)
+        bubbleOn = v and true or false
+        bubbleRefresh()
+    end)
 end)()
 
 createSection(FeaturesPage, "KARAKTER ÖZELLİKLERİ")
