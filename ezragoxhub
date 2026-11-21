@@ -682,9 +682,9 @@ local EN_REPLACEMENTS = {
     ["menüyü aç / kapat"] = "toggle menu",
     ["Fling Başarılı"] = "Fling Successful",
     ["Fling Etkisiz"] = "Fling Ineffective",
-    ["Havaya Uçuruldu"] = "Launched into the Air",
+    ["Aşağı Fırlatıldı"] = "Launched Downward",
     ["Sky Etkisiz"] = "Sky Launch Ineffective",
-    ["Uzaya Fırlatıldı"] = "Launched into Space",
+    ["Boşluğa Fırlatıldı"] = "Launched into the Void",
     ["Etkisiz"] = "Ineffective",
     ["Yanına Çekildi"] = "Pulled to You",
     ["Kısmen Çekildi"] = "Partially Pulled",
@@ -3272,8 +3272,16 @@ local BILDIRIMLER_ACIK = true
 -- bildirim göstermesin diye (aksi halde her girişte 'X Aktif' bildirimleri art arda çıkar).
 local suppressNotify = false
 
+-- Bildirimler yalnızca haritada OYNARKEN (karakterin var ve canlıyken) gösterilir;
+-- öldüğünde / lobideyken (karakter yok ya da can <= 0) hiçbir bildirim çıkmaz.
+local function isPlayerAliveForNotify()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    return hum ~= nil and hum.Health > 0
+end
+
 local function notify(title, text, duration)
-    if not BILDIRIMLER_ACIK or suppressNotify then return end
+    if not BILDIRIMLER_ACIK or suppressNotify or not isPlayerAliveForNotify() then return end
     if Settings.Sound and (Settings.NotificationVolume or 0) > 0 then
         playSound(1.0, (Settings.NotificationVolume / 100) * 0.65)
     end
@@ -3351,7 +3359,7 @@ local notifyTop
 do
 local activeTopToast = nil
 function notifyTop(text, duration, width)
-    if suppressNotify then return end
+    if suppressNotify or not isPlayerAliveForNotify() then return end
     if activeTopToast and activeTopToast.Parent then activeTopToast:Destroy() end
     local panelPos, panelSize = MainFrame.AbsolutePosition, MainFrame.AbsoluteSize
     -- Panelin imza görünümü: diyagonal kırmızı/kömür degrade + nabız gibi parlayan kenarlık
@@ -5430,6 +5438,7 @@ local FeaturesPage = createTab("Özellikler", "")
     -- Tek fark: YARHM'deki "Oyuncu zaten flung, tekrar fırlatılsın mı?" onay penceresi burada
     -- yok (bu scriptte YARHM'deki gibi bir dialog sistemi yok), o yüzden doğrudan devam eder.
     local function flingTarget(plr, killMode)
+        killMode = true   -- TÜM fırlatmalar yukarı değil AŞAĞI (boşluğa) fırlatır: hedef direkt ölsün
         if mm2FlingBusy then
             notify("Bekle", "Önceki fırlatma hâlâ sürüyor.", 2)
             return
@@ -5450,183 +5459,212 @@ local FeaturesPage = createTab("Özellikler", "")
             local TCharacter = TargetPlayer.Character
 
             if Character and Humanoid and RootPart and TCharacter then
-                local THumanoid, TRootPart, THead, Accessory, Handle
-
-                if TCharacter:FindFirstChildOfClass("Humanoid") then
-                    THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
-                end
-                if THumanoid and THumanoid.RootPart then
-                    TRootPart = THumanoid.RootPart
-                end
-                if TCharacter:FindFirstChild("Head") then
-                    THead = TCharacter.Head
-                end
-                if TCharacter:FindFirstChildOfClass("Accessory") then
-                    Accessory = TCharacter:FindFirstChildOfClass("Accessory")
-                end
-                if Accessory and Accessory:FindFirstChild("Handle") then
-                    Handle = Accessory.Handle
-                end
-
-                if RootPart.Velocity.Magnitude < 50 then
-                    flingOldPos = RootPart.CFrame
-                end
-
-                if THead then
-                    workspace.CurrentCamera.CameraSubject = THead
-                elseif not THead and Handle then
-                    workspace.CurrentCamera.CameraSubject = Handle
-                elseif THumanoid and TRootPart then
-                    workspace.CurrentCamera.CameraSubject = THumanoid
-                end
-
-                if not TCharacter:FindFirstChildWhichIsA("BasePart") then
-                    mm2FlingBusy = false
-                    return
-                end
-
-                local FPos = function(BasePart, Pos, Ang)
-                    if killMode then
-                        -- ÖLDÜRME MODU: hep hedefin ÜSTÜNDEN çarp ve hızı AŞAĞI ver: hedef yukarı/yana uçup
-                        -- havada kalmak yerine haritanın altındaki boşluğa (düşme yüksekliğinin altına) gider ve ölür.
-                        Pos = CFrame.new(Pos.X, math.abs(Pos.Y) + 0.5, Pos.Z)
-                    end
-                    RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-                    Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-                    if killMode then
-                        RootPart.Velocity = Vector3.new(9e5, -9e8, 9e5)
-                    else
-                        RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-                    end
-                    RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
-                end
-
-                local SFBasePart = function(BasePart)
-                    local TimeToWait = killMode and 3 or 2
-                    local Time = tick()
-                    local Angle = 0
-                    local startY = BasePart.Position.Y
-
-                    repeat
-                        if RootPart and THumanoid then
-                            if BasePart.Velocity.Magnitude < 50 then
-                                Angle = Angle + 100
-
-                                FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                                task.wait()
-                            else
-                                FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
-                                task.wait()
-
-                                FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                                task.wait()
-                            end
-                        else
-                            break
-                        end
-                    until BasePart.Velocity.Magnitude > 500
-                        or (killMode and BasePart.Position.Y < startY - 60)   -- hedef yere gömülüp aşağı düşüyor: bırak, kendi kendine ölsün
-                        or BasePart.Parent ~= TargetPlayer.Character
-                        or TargetPlayer.Parent ~= Players
-                        or TargetPlayer.Character ~= TCharacter
-                        or (THumanoid and THumanoid.Sit)
-                        or Humanoid.Health <= 0
-                        or tick() > Time + TimeToWait
-                end
-
-                workspace.FallenPartsDestroyHeight = 0 / 0
-
-                local BV = Instance.new("BodyVelocity")
-                BV.Name = "EZRAGOX_FlingVel"
-                BV.Parent = RootPart
-                BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
-                BV.MaxForce = Vector3.new(1 / 0, 1 / 0, 1 / 0)
-
-                Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-
-                if TRootPart and THead then
-                    if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
-                        SFBasePart(THead)
-                    else
-                        SFBasePart(TRootPart)
-                    end
-                elseif TRootPart and not THead then
-                    SFBasePart(TRootPart)
-                elseif not TRootPart and THead then
-                    SFBasePart(THead)
-                elseif not TRootPart and not THead and Accessory and Handle then
-                    SFBasePart(Handle)
-                else
-                    notify("Hata", "Hedef oyuncunun fırlatılacak uygun bir parçası bulunamadı.", 3)
-                end
-
-                BV:Destroy()
-                Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-                if killMode and THumanoid then
-                    -- kendimi hemen eski yerime al, hedefin düşüp ölmesini (en fazla 1.5 sn) buradan izle
-                    pcall(function()
-                        RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
-                        RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
-                    end)
-                    local tk = os.clock()
-                    while os.clock() - tk < 1.5 and THumanoid.Parent and THumanoid.Health > 0 do task.wait() end
-                end
-                workspace.CurrentCamera.CameraSubject = Humanoid
+                -- Tek seferlik fırlatma: tekrar tekrar denenmez.
+                local MAX_ATTEMPTS = 1
+                local attempt = 0
+                local targetDied = false
 
                 repeat
-                    RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
-                    Character:SetPrimaryPartCFrame(flingOldPos * CFrame.new(0, .5, 0))
-                    Humanoid:ChangeState("GettingUp")
-                    table.foreach(Character:GetChildren(), function(_, x)
-                        if x:IsA("BasePart") then
-                            x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+                    attempt = attempt + 1
+                    TCharacter = TargetPlayer.Character
+                    if not TCharacter or TargetPlayer.Parent ~= Players then break end
+
+                    local THumanoid, TRootPart, THead, Accessory, Handle
+
+                    if TCharacter:FindFirstChildOfClass("Humanoid") then
+                        THumanoid = TCharacter:FindFirstChildOfClass("Humanoid")
+                    end
+                    if THumanoid and THumanoid.RootPart then
+                        TRootPart = THumanoid.RootPart
+                    end
+                    if TCharacter:FindFirstChild("Head") then
+                        THead = TCharacter.Head
+                    end
+                    if TCharacter:FindFirstChildOfClass("Accessory") then
+                        Accessory = TCharacter:FindFirstChildOfClass("Accessory")
+                    end
+                    if Accessory and Accessory:FindFirstChild("Handle") then
+                        Handle = Accessory.Handle
+                    end
+
+                    if not THumanoid or THumanoid.Health <= 0 then
+                        targetDied = true   -- zaten ölmüş / karakteri yok: başarılı say, tekrar deneme
+                        break
+                    end
+
+                    if RootPart.Velocity.Magnitude < 50 then
+                        flingOldPos = RootPart.CFrame
+                    end
+
+                    if THead then
+                        workspace.CurrentCamera.CameraSubject = THead
+                    elseif not THead and Handle then
+                        workspace.CurrentCamera.CameraSubject = Handle
+                    elseif THumanoid and TRootPart then
+                        workspace.CurrentCamera.CameraSubject = THumanoid
+                    end
+
+                    if not TCharacter:FindFirstChildWhichIsA("BasePart") then
+                        break
+                    end
+
+                    local FPos = function(BasePart, Pos, Ang)
+                        if killMode then
+                            -- ÖLDÜRME MODU: hep hedefin ÜSTÜNDEN çarp ve hızı AŞAĞI ver: hedef yukarı/yana uçup
+                            -- havada kalmak yerine haritanın altındaki boşluğa (düşme yüksekliğinin altına) gider ve ölür.
+                            Pos = CFrame.new(Pos.X, math.abs(Pos.Y) + 0.5, Pos.Z)
                         end
-                    end)
-                    task.wait()
-                until (RootPart.Position - flingOldPos.p).Magnitude < 25
-                workspace.FallenPartsDestroyHeight = oldFallenHeight
+                        RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
+                        Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+                        if killMode then
+                            RootPart.Velocity = Vector3.new(9e5, -9e9, 9e5)
+                        else
+                            RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
+                        end
+                        RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                    end
+
+                    local SFBasePart = function(BasePart)
+                        local TimeToWait = killMode and 4.5 or 2
+                        local Time = tick()
+                        local Angle = 0
+                        local startY = BasePart.Position.Y
+
+                        repeat
+                            if RootPart and THumanoid then
+                                if BasePart.Velocity.Magnitude < 50 then
+                                    Angle = Angle + 100
+
+                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(2.25, 1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(-2.25, -1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    task.wait()
+                                else
+                                    FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
+                                    task.wait()
+
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
+                                    task.wait()
+                                end
+                            else
+                                break
+                            end
+                        until BasePart.Velocity.Magnitude > 500
+                            or (killMode and BasePart.Position.Y < startY - 40)   -- hedef yere gömülüp aşağı düşüyor: bırak, kendi kendine ölsün
+                            or BasePart.Parent ~= TargetPlayer.Character
+                            or TargetPlayer.Parent ~= Players
+                            or TargetPlayer.Character ~= TCharacter
+                            or (THumanoid and THumanoid.Sit)
+                            or Humanoid.Health <= 0
+                            or THumanoid.Health <= 0
+                            or tick() > Time + TimeToWait
+                    end
+
+                    workspace.FallenPartsDestroyHeight = 0 / 0
+
+                    local BV = Instance.new("BodyVelocity")
+                    BV.Name = "EZRAGOX_FlingVel"
+                    BV.Parent = RootPart
+                    BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    BV.MaxForce = Vector3.new(1 / 0, 1 / 0, 1 / 0)
+
+                    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
+
+                    if TRootPart and THead then
+                        if (TRootPart.CFrame.p - THead.CFrame.p).Magnitude > 5 then
+                            SFBasePart(THead)
+                        else
+                            SFBasePart(TRootPart)
+                        end
+                    elseif TRootPart and not THead then
+                        SFBasePart(TRootPart)
+                    elseif not TRootPart and THead then
+                        SFBasePart(THead)
+                    elseif not TRootPart and not THead and Accessory and Handle then
+                        SFBasePart(Handle)
+                    else
+                        notify("Hata", "Hedef oyuncunun fırlatılacak uygun bir parçası bulunamadı.", 3)
+                    end
+
+                    BV:Destroy()
+                    Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
+                    if killMode and THumanoid then
+                        -- kendimi hemen eski yerime al, hedefin düşüp ölmesini buradan izle (en fazla 3 sn)
+                        pcall(function()
+                            RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
+                            RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
+                        end)
+                        local tk = os.clock()
+                        while os.clock() - tk < 3 and THumanoid.Parent and THumanoid.Health > 0 do task.wait() end
+                        targetDied = not (THumanoid.Parent and THumanoid.Health > 0)
+                    else
+                        targetDied = true
+                    end
+                    workspace.CurrentCamera.CameraSubject = Humanoid
+
+                    repeat
+                        RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
+                        Character:SetPrimaryPartCFrame(flingOldPos * CFrame.new(0, .5, 0))
+                        Humanoid:ChangeState("GettingUp")
+                        table.foreach(Character:GetChildren(), function(_, x)
+                            if x:IsA("BasePart") then
+                                x.Velocity, x.RotVelocity = Vector3.new(), Vector3.new()
+                            end
+                        end)
+                        task.wait()
+                    until (RootPart.Position - flingOldPos.p).Magnitude < 25
+                    workspace.FallenPartsDestroyHeight = oldFallenHeight
+                until targetDied or attempt >= MAX_ATTEMPTS
 
                 mm2FlingBusy = false
-                notify("Fırlatma", TargetPlayer.Name .. " fırlatıldı (veya denendi).", 3)
+                if killMode and not targetDied then
+                    notify("Fırlatma", TargetPlayer.Name .. " fırlatıldı ama ölmedi (muhtemelen Anti-Fling kullanıyor).", 4)
+                else
+                    notify("Fırlatma", TargetPlayer.Name .. " fırlatıldı (veya denendi).", 3)
+                end
             else
                 mm2FlingBusy = false
                 notify("Hata", "Hedef oyuncunun geçerli bir karakteri yok. Ölmüş olabilir.", 3)
@@ -5667,7 +5705,7 @@ local FeaturesPage = createTab("Özellikler", "")
                         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
                         if hrp then
                             local vel = hrp.AssemblyLinearVelocity
-                            hrp.AssemblyLinearVelocity = vel * 10000 + Vector3.new(0, 10000, 0)
+                            hrp.AssemblyLinearVelocity = Vector3.new(vel.X * 10000, -10000, vel.Z * 10000)
                             RunService.RenderStepped:Wait()
                             if hrp.Parent then hrp.AssemblyLinearVelocity = vel end
                             RunService.Stepped:Wait()
@@ -8165,7 +8203,7 @@ end)()
             if isDroppedGun(d) then
                 gunDropCache = d
                 -- Silah düştüğü AN otomatik alma tetiklenir (döngüyü beklemeden)
-                if autoGunOn and SFX.autoGunNow then task.defer(SFX.autoGunNow) end
+                if autoGunOn and SFX.autoGunNow then task.spawn(SFX.autoGunNow) end
             end
         end
     end)
@@ -8437,9 +8475,9 @@ end)()
 
     -- Silah yeni düştü: parça(lar) gelene kadar çok kısa bekle ve hemen almaya git
     function SFX.autoGunNow()
-        for _ = 1, 12 do
+        for _ = 1, 30 do
             if gunDropInfo() then break end
-            task.wait(0.02)
+            RunService.Heartbeat:Wait()
         end
         pcall(function()
             lastGunTry = 0
@@ -15450,11 +15488,8 @@ end)()
         clearGunEsp()
         if topBanner then pcall(function() topBanner:Destroy() end) end
     end)
-    task.spawn(function()
-        while alive do
-            if autoGunOn then pcall(autoGunStep) end
-            task.wait(0.03)
-        end
+    bind(RunService.Heartbeat, function()
+        if autoGunOn then pcall(autoGunStep) end
     end)
     task.spawn(function()
         while alive do
@@ -18419,22 +18454,21 @@ function Troll.attack(mode)
 
                 local offset, lin, rot, spin
                 if mode == "fling" then
-                    local y = (math.floor(angle / 100) % 2 == 0) and 1.5 or -1.5
-                    offset = CFrame.new(0, y, 0) + lead
-                    lin = Vector3.new(9e7, 9e8, 9e7)
+                    offset = CFrame.new(0, 2, 0) + lead
+                    lin = Vector3.new(9e5, -9e8, 9e5)
                     rot = Vector3.new(9e8, 9e8, 9e8)
                     spin = CFrame.Angles(math.rad(angle), 0, 0)
                 elseif mode == "sky" then
-                    offset = CFrame.new(0, -2, 0) + lead
-                    lin = Vector3.new(0, 9e5, 0)
+                    offset = CFrame.new(0, 2, 0) + lead
+                    lin = Vector3.new(0, -9e5, 0)
                     rot = Vector3.zero
                     spin = CFrame.new()
                 elseif mode == "space" then
                     -- Sürekli artan, çok güçlü dikey itiş: hedefi haritanın çok üstüne,
                     -- adeta uzaya kadar fırlatmayı hedefler.
                     local t = os.clock() - startT
-                    offset = CFrame.new(0, -2 - t * 4, 0) + lead
-                    lin = Vector3.new(0, 1.2e6 + t * 4e5, 0)
+                    offset = CFrame.new(0, 2, 0) + lead
+                    lin = Vector3.new(0, -(1.2e6 + t * 4e5), 0)
                     rot = Vector3.zero
                     spin = CFrame.new()
                 elseif mode == "pull" then
@@ -18495,13 +18529,13 @@ function Troll.attack(mode)
             end
         elseif mode == "sky" then
             if hit then
-                notify("Havaya Uçuruldu", name .. " havaya fırlatıldı!", 3)
+                notify("Aşağı Fırlatıldı", name .. " aşağıya (boşluğa) fırlatıldı!", 3)
             else
-                notify("Sky Etkisiz", name .. " yükselmedi; oyun çarpışmaya karşı korumalı olabilir.", 4)
+                notify("Etkisiz", name .. " aşağı gitmedi; oyun çarpışmaya karşı korumalı olabilir.", 4)
             end
         elseif mode == "space" then
             if hit then
-                notify("Uzaya Fırlatıldı 🚀", name .. " maksimum güçle fırlatıldı!", 3)
+                notify("Boşluğa Fırlatıldı", name .. " maksimum güçle aşağı fırlatıldı!", 3)
             else
                 notify("Etkisiz", name .. " yerinden oynamadı; bu oyun çarpışma fiziğine karşı korumalı (ör. anchored/ragdoll kilidi).", 5)
             end
