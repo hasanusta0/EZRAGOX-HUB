@@ -11581,10 +11581,12 @@ end)()
     ;(function()
         local HIDE_DROP = 120                    -- gerçek karakter, hayaletin bu kadar altında durur
         local INVIS_SPEED_MULT = 1.25            -- görünmezken hız çarpanı (1.25 = %25 daha hızlı; 1 = değişiklik yok)
+        local GHOST_NOCLIP = true                -- görünmezken duvarların içinden geçebil (false = kapalı)
         local RS_NAME = "EZRAGOX_GhostView"
         local ghost, gHum, gHrp, gAnimator
         local rChar, rHum, rHrp
-        local pinConn, jumpConn
+        local pinConn, jumpConn, noclipConn, noclipAdded
+        local noclipParts = {}
         local active = false
         local lastCF, pinPos
         local ids, tracks, curAnim = {}, {}, nil
@@ -11659,6 +11661,9 @@ end)()
             SFX.mouseBoost = os.clock() + 2.5   -- fare kilidi kurtarıcısı bu sırada hızlı çalışsın
             if pinConn then pinConn:Disconnect() pinConn = nil end
             if jumpConn then jumpConn:Disconnect() jumpConn = nil end
+            if noclipConn then noclipConn:Disconnect() noclipConn = nil end
+            if noclipAdded then noclipAdded:Disconnect() noclipAdded = nil end
+            noclipParts = {}
             pcall(function() RunService:UnbindFromRenderStep(RS_NAME) end)
             for _, t in pairs(tracks) do pcall(function() t:Stop(0) end) end
             tracks, curAnim = {}, nil
@@ -11754,6 +11759,29 @@ end)()
             local cam = workspace.CurrentCamera
             if cam then cam.CameraSubject = gh end
 
+            -- Noclip: hayaletin tüm parçaları her fizik adımından önce çarpışmasız yapılır (duvarlardan geçer).
+            -- Zemin algısı çarpışmadan değil Humanoid'in aşağı ışınından geldiği için yerden düşmezsin.
+            if GHOST_NOCLIP then
+                noclipParts = {}
+                for _, d in ipairs(g:GetDescendants()) do
+                    if d:IsA("BasePart") then noclipParts[#noclipParts + 1] = d end
+                end
+                noclipAdded = g.DescendantAdded:Connect(function(d)
+                    if d:IsA("BasePart") then noclipParts[#noclipParts + 1] = d end
+                end)
+                noclipConn = RunService.Stepped:Connect(function()
+                    if not active then return end
+                    for i = #noclipParts, 1, -1 do
+                        local p = noclipParts[i]
+                        if p.Parent then
+                            if p.CanCollide then p.CanCollide = false end
+                        else
+                            table.remove(noclipParts, i)
+                        end
+                    end
+                end)
+            end
+
             -- Gerçek karakteri hayaletin çok altında sabit tut (sunucu ve diğer oyuncular onu orada görür)
             pinConn = RunService.Heartbeat:Connect(function()
                 if not active then return end
@@ -11808,7 +11836,7 @@ end)()
             if v then
                 SFX.invisOn = true
                 if startGhost() then
-                    notify("Görünmezlik", "Aktif: diğer oyuncular seni göremez; karakterin yarı saydam görünür. Kapatınca bulunduğun yerde normale dönersin. (Gizliyken bıçak / silah / coin gibi gerçek karakter işleri çalışmaz.)", 5)
+                    notify("Görünmezlik", "Aktif: diğer oyuncular seni göremez; karakterin yarı saydam görünür ve duvarların içinden geçebilirsin. Kapatınca bulunduğun yerde normale dönersin. (Gizliyken bıçak / silah / coin gibi gerçek karakter işleri çalışmaz.)", 5)
                 else
                     notify("Görünmezlik", "Karakter hazır değil, doğunca otomatik başlayacak.", 3)
                 end
