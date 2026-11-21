@@ -484,6 +484,8 @@ local EN_TEXT = {
     ["🔫  Düşen Silaha Otomatik Işınlan"]="🔫  Auto-Teleport to Dropped Gun",
     ["🏃  Katil Yaklaşınca Güvenli Yere Işınlan"]="🏃  Teleport to Safety When the Murderer Approaches",
     ["💰  Oto Coin Farm (Yerin Altında Yatay)"]="💰  Auto Coin Farm (Horizontal Underground)",
+    ["💰  Auto Farm  (Vertex)"]="💰  Auto Farm  (Vertex)",
+    ["🧭  Farm Modu  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)"]="🧭  Farm Mode  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)",
     ["⚡  Turbo Süzülme (Işınlanmaya Yakın)"]="⚡  Turbo Glide (Near-Teleport)",
     ["🚀  Turbo Hızı"]="🚀  Turbo Speed",
     ["🕳️  Gizli Odaya Git"]="🕳️  Go to Secret Room",
@@ -12895,48 +12897,404 @@ end)()
         end
     end
 
-    farmToggle = createToggle(MM2Page, "💰  Oto Coin Farm (Yerin Altında Yatay)", false, function(v)
-        farmOn = v
-        setFarmAntiAFK(v)
-        if v then
-            local hrp = myHRP()
-            farmStart = hrp and hrp.Position or nil
-            farmDone, noCoinTimer = false, nil
-            Settings.FarmEntered, Settings.FarmLastPos = false, nil
-        else
-            releaseFarm()
-        end
-    end, false)
-    farmToggle.Set(false, true) -- oto farm her açılışta kapalı başlar
-    createSlider(MM2Page, "🐢  Farm Hızı", 10, 100, 50, function(v)
-        farmSpeed = v
-    end, " st/sn")
-    pcall(function()
-        createToggle(MM2Page, "⚡  Turbo Süzülme (Işınlanmaya Yakın)", false, function(v)
-            Settings.FarmTp = v
-        end, false)
-        createSlider(MM2Page, "🚀  Turbo Hızı", 60, 150, 90, function(v)
-            Settings.FarmTpSpeed = v
-        end, " st/sn")
-        createSlider(MM2Page, "⬇️  Yerin Altı Derinliği", 1, 6, 2.5, function(v)
-            Settings.FarmDepth = v
-        end, " stud")
-        SFX.farmHopToggle = createToggle(MM2Page, "📡  Işınlanarak Farm (Kısa Atlamalarla, Turbo'dan Önceliklidir)", false, function(v)
-            Settings.FarmHop = v and true or false
-            if v then
-                local ms = math.clamp(tonumber(Settings.FarmHopMs) or 200, 50, 600)
-                local d = math.clamp(tonumber(Settings.FarmHopDist) or 16, 4, 40)
-                notify("Işınlanarak Farm", string.format("Aktif! Yaklaşık %d st/sn (sert sınır %d st/sn). Atılırsan aralığı artır veya mesafeyi azalt.", math.min(SFX.hopMax, math.floor(d / (ms / 1000))), SFX.hopMax), 5)
+    -- =====================================================================
+    -- 💰 AUTO FARM — Vertex scriptinden OLDUĞU GİBİ taşındı (eski EZRAGOX farm'ın yerine)
+    -- Coin seçimi, ışınlanma / tween, noclip, çanta dolunca sıfırlanma ve
+    -- Farm Modu (Nearest + XP Farm / Nearest / Randomize) Vertex'tekiyle aynıdır.
+    -- Yalnızca bu hub'a bağlanması gereken yerler uyarlandı:
+    --   • roller (GetPlayerData) hub'ın kendi bulduğu remote'tan okunur
+    --   • shared.Premium → Settings.PremiumActive
+    --   • arayüz: createToggle / createSlider (Vertex'in Dropdown'ı yerine 1-2-3 slider)
+    -- Yeni local eklememek için her şey bu fonksiyonun içinde tutulur.
+    -- =====================================================================
+    ;(function()
+        local Murderer, Sheriff, roles = nil, nil, {}
+        local currentTween, lastTeleportedCoin = nil, nil
+        local farmEnabled, farmToken = false, 0
+        local farmMode = "Nearest"
+        local speed
+
+        local function TargetModel(target)
+            for _, model in pairs(workspace:GetChildren()) do
+                if model:IsA("Model") and not string.find(string.lower(model.Name), "lobby") then
+
+                    local coinContainer = model:FindFirstChild("CoinContainer")
+                    local spawnsFolder = model:FindFirstChild("Spawns")
+
+                    if target == "CoinContainer" and coinContainer then
+                        return coinContainer
+                    elseif target == "Spawns" and spawnsFolder then
+
+                        return spawnsFolder
+                    end
+                end
             end
+            return nil
+        end
+
+        local function IsAlive(Player, roles)
+            local role = roles and roles[Player.Name]
+            local char = Player.Character
+
+            if not role then
+                return false
+            end
+
+            if not role.Killed and not role.Dead then
+                return true
+            end
+
+            if char and char:FindFirstChild("HumanoidCloned") then
+                return true
+            end
+
+            return false
+        end
+
+        local function Fetch(itemName)
+            for _, player in ipairs(game.Players:GetPlayers()) do
+                local bp = player:FindFirstChildOfClass("Backpack")
+                if (bp and bp:FindFirstChild(itemName)) or (player.Character and player.Character:FindFirstChild(itemName)) then
+                    return player.Name
+                end
+            end
+            return nil
+        end
+
+        local function CoinAttribute(part, CheckCoin)
+            local humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid")
+            local partPosition = part.Position
+            local humanoidPosition = humanoid.Parent.PrimaryPart.Position
+
+            if (partPosition - humanoidPosition).Magnitude <= 4 and (shared.Premium or Settings.PremiumActive) then wait()
+                firetouchinterest(part, LocalPlayer.Character:FindFirstChild("HumanoidRootPart"), 1)
+                wait(.1)
+                firetouchinterest(part, LocalPlayer.Character:FindFirstChild("HumanoidRootPart"), 0)
+                part:Destroy()
+            end
+            if (partPosition - humanoidPosition).Magnitude <= 2 then wait(.1)
+                part.Name = "vertex_collected"
+            end
+
+            if part:GetAttribute("Collected") ~= true and CheckCoin then
+                return true
+            end
+            return false
+        end
+
+        local function TrackCoinBag()
+
+            local elite = LocalPlayer:GetAttribute("Elite")
+            local role = roles[LocalPlayer.Name]
+
+            if role then
+                local coins = tonumber(role.Coins) or 0
+
+                if elite ~= nil and coins == 50 then
+                    return true
+                elseif elite == nil and coins == 40 then
+                    return true
+                end
+            end
+
+            return false
+        end
+
+        local function tween_teleport(TargetFrame, Time, SlowDown, fullywait, coin)
+            local character = LocalPlayer.Character
+            local humanoidRootPart = character and character:FindFirstChild("HumanoidRootPart")
+
+            if humanoidRootPart then
+                if currentTween then
+                    currentTween:Cancel()
+                end
+
+                humanoidRootPart.AssemblyLinearVelocity = Vector3.zero
+                humanoidRootPart.AssemblyAngularVelocity = Vector3.zero
+
+                local distance = (humanoidRootPart.Position - TargetFrame.Position).Magnitude
+                local speed = Time
+                local tweenDuration = math.clamp(distance / speed, 0.15, 5)
+
+                local tweenInfo = TweenInfo.new(
+                    tweenDuration,
+                    SlowDown and Enum.EasingStyle.Quad or Enum.EasingStyle.Linear,
+                    SlowDown and Enum.EasingDirection.Out or Enum.EasingDirection.In
+                )
+
+                local move = TweenService:Create(
+                    humanoidRootPart,
+                    tweenInfo,
+                    { CFrame = TargetFrame }
+                )
+
+                currentTween = move
+                move:Play()
+
+                if fullywait == true then
+                    repeat
+                        task.wait()
+                        CoinAttribute(coin, true)
+                    until not CoinAttribute(coin, true)
+                       or TrackCoinBag()
+                       or not IsAlive(LocalPlayer, roles)
+                end
+
+                currentTween = nil
+            end
+        end
+
+        local function BodyVelocity()
+            if not LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyVelocity") then
+                local bodyVelocity = Instance.new('BodyVelocity')
+                bodyVelocity.Name = "BodyVelocity"
+                bodyVelocity.velocity = Vector3.new(0, 0, 0)
+                bodyVelocity.maxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bodyVelocity.Parent = LocalPlayer.Character.HumanoidRootPart
+            end
+        end
+
+        local function DestroyBody()
+            if LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyVelocity") then
+                LocalPlayer.Character.HumanoidRootPart:FindFirstChild("BodyVelocity"):Destroy()
+            end
+        end
+
+        local function resetCharacter()
+            pcall(function()
+            if farmMode == "Nearest" then
+                LocalPlayer.Character.Humanoid.Health = 0
+            else
+                local character = LocalPlayer.Character
+                if not character then return end
+
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if not hrp then return end
+
+                for _, folder in pairs(workspace:GetChildren()) do
+                    if folder:IsA("Model") or folder:IsA("Folder") then
+                        if string.find(string.lower(folder.Name), "lobby") then
+                            for _, object in pairs(folder:GetDescendants()) do
+                                if object:IsA("SpawnLocation") then
+                                    tween_teleport(
+                                        CFrame.new(object.Position + Vector3.new(0, 5, 0)),
+                                        5000
+                                    )
+                                    return
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            end)
+        end
+
+        local function findCoin(humanoidRootPart, mode)
+            local closestCoin = nil
+            local minimum_distance = math.huge
+            local validCoins = {}
+            local allCoins = {}
+            local farCoins = {}
+
+            local murderer = game.Players:FindFirstChild(Murderer)
+            local MurdererHumanoid = murderer.Character and murderer.Character:FindFirstChild("HumanoidRootPart")
+            local murdererPosition = MurdererHumanoid and MurdererHumanoid.Position or nil
+
+            for _, v in pairs(TargetModel("CoinContainer"):GetChildren()) do
+                if CoinAttribute(v, true) and v.Name == "Coin_Server" and v:FindFirstChild("TouchInterest") and IsAlive(LocalPlayer, roles) then
+                    local partPosition = v.CoinVisual.Position
+                    local distance = (humanoidRootPart.Position - partPosition).Magnitude
+
+                    if murdererPosition then
+                        local murdererDistance = (partPosition - murdererPosition).Magnitude
+
+                        if murdererDistance >= 25 then
+                            table.insert(farCoins, v)
+                        end
+
+                        if distance <= 50 then
+                            table.insert(validCoins, v)
+                        end
+
+                        if distance < minimum_distance then
+                            minimum_distance = distance
+                            closestCoin = v
+                        end
+                    end
+                end
+            end
+
+            if mode == "closest" then
+                return closestCoin
+            elseif mode == "random" then
+                if #validCoins == 0 then
+                    if #farCoins > 0 then
+                        return farCoins[math.random(1, #farCoins)]
+                    end
+                else
+                    if #validCoins > 0 then
+                        return validCoins[math.random(1, #validCoins)]
+                    end
+                end
+            end
+
+            return nil
+        end
+
+        local function teleportToCoin(targetCoin, humanoidRootPart)
+            local targetPosition = targetCoin.CoinVisual.Position
+            local distanceToTarget = (humanoidRootPart.Position - targetPosition).Magnitude
+            local humanoid = LocalPlayer.Character:FindFirstChild('Humanoid')
+
+
+            speed = 21
+
+
+            if not TrackCoinBag() and CoinAttribute(targetCoin, true) then
+                local targetCFrame = CFrame.new(targetPosition.X, targetPosition.Y, targetPosition.Z)
+
+                if farmMode == "Randomize" then
+                    if distanceToTarget > 200 then
+                        humanoidRootPart.CFrame = targetCFrame * CFrame.new(0, 10, 0)
+                        wait(2)
+                        tween_teleport(targetCFrame * CFrame.new(0, 1.5, 0), distanceToTarget > 200 and speed or speed, false)
+                    else
+                    tween_teleport(targetCFrame * CFrame.new(0, 1.5, 0), 20, true, true, targetCoin)
+                    end
+                else
+                    if distanceToTarget > 200 then
+                        humanoidRootPart.CFrame = targetCFrame * CFrame.new(0, 10, 0)
+                        wait(2)
+                        tween_teleport(targetCFrame * CFrame.new(0, 1.5, 0), distanceToTarget > 200 and 5000 or speed, false)
+                    else
+                        tween_teleport(targetCFrame * CFrame.new(0, 1.5, 0), distanceToTarget > 20 and speed or speed, false)
+
+                    end
+                end
+            end
+        end
+
+        local function AutoFarm()
+            local success, result = pcall(function()
+                local character = LocalPlayer.Character
+                local humanoid = character:FindFirstChild('Humanoid')
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+
+                if not Murderer then
+                    DestroyBody()
+                    return
+                end
+
+                -- Vertex'te burada Kill All / Kill Murderer / Auto Shoot anahtarlarına bakılıyordu;
+                -- bu hub'da bunların sürekli açık anahtarı yok, bu yüzden "açık değil" kabul edilir.
+                local otherAutoOn = false
+                if TrackCoinBag() and humanoidRootPart and humanoid.Health > 0 and IsAlive(LocalPlayer, roles) and ((not otherAutoOn) or (Murderer ~= LocalPlayer.Name and Sheriff ~= LocalPlayer.Name)) then
+                    resetCharacter()
+                    return
+                end
+
+                if farmEnabled and IsAlive(LocalPlayer, roles) then
+                    local targetCoin
+                    if farmMode == "Nearest" or farmMode == "Nearest + XP Farm" then
+                        targetCoin = findCoin(humanoidRootPart, "closest")
+                    else
+                        targetCoin = findCoin(humanoidRootPart, "random")
+                    end
+
+                    if targetCoin then
+
+                        if not humanoidRootPart then return end
+
+                        if lastTeleportedCoin ~= targetCoin then
+                            BodyVelocity()
+                            teleportToCoin(targetCoin, humanoidRootPart)
+                            lastTeleportedCoin = targetCoin
+                        end
+                    end
+                end
+            end)
+        end
+
+        local function NoclipLoop()
+            if LocalPlayer.Character ~= nil then
+                for _, child in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if child:IsA("BasePart") and child.CanCollide == true and IsAlive(LocalPlayer, roles) then
+                        child.CanCollide = false
+                    end
+                end
+            end
+        end
+
+        -- Vertex: Murderer / Sheriff / roles her 0.1 sn'de bir güncellenir (GetPlayerData)
+        local function refreshRoles()
+            Murderer = Fetch("Knife")
+            Sheriff = Fetch("Gun")
+            local rr = roleRemote
+            if not rr or not rr.Parent then
+                fetchRoles()
+                rr = roleRemote
+            end
+            local res = rr and rr:InvokeServer()
+            if type(res) == "table" then
+                roles = res
+            else
+                -- GetPlayerData bulunamazsa hub'ın kendi tahmini roller kullanılır
+                local t = {}
+                for n, i in pairs(fetchRoles()) do
+                    t[n] = {Role = i.Role, Dead = i.Dead, Killed = i.Dead}
+                end
+                roles = t
+            end
+        end
+
+        local function startFarm(my)
+            task.spawn(function()
+                while alive and farmEnabled and farmToken == my do
+                    pcall(refreshRoles)
+                    task.wait(0.1)
+                end
+            end)
+            task.spawn(function()
+                local nc = RunService.Stepped:Connect(NoclipLoop)
+                while alive and farmEnabled and farmToken == my do
+                    task.wait()
+                    AutoFarm()
+                end
+                nc:Disconnect()
+            end)
+        end
+
+        local FARM_T = "💰  Auto Farm  (Vertex)"
+        local MODE_T = "🧭  Farm Modu  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)"
+        local MODES = {"Nearest + XP Farm", "Nearest", "Randomize"}
+        local function setMode(v)
+            local i = math.clamp(math.floor((tonumber(v) or 2) + 0.5), 1, 3)
+            farmMode = MODES[i]
+            return i
+        end
+        setMode(Settings.SliderValues[MODE_T])
+
+        farmToggle = createToggle(MM2Page, FARM_T, false, function(v)
+            farmEnabled = v and true or false
+            setFarmAntiAFK(v)
+            farmToken = farmToken + 1
+            local my = farmToken
+            if not farmEnabled then
+                if currentTween then pcall(function() currentTween:Cancel() end) currentTween = nil end
+                pcall(DestroyBody)
+                return
+            end
+            lastTeleportedCoin = nil
+            startFarm(my)
         end, false)
-        SFX.farmHopToggle.Set(false, true) -- her açılışta kapalı başlar
-        createSlider(MM2Page, "⏱️  Işınlanma Aralığı  •  atılırsan artır", 50, 600, 200, function(v)
-            Settings.FarmHopMs = v
-        end, " ms")
-        createSlider(MM2Page, "📏  Atlama Mesafesi  •  atılırsan azalt", 4, 40, 16, function(v)
-            Settings.FarmHopDist = v
-        end, " st")
-    end)
+        farmToggle.Set(false, true) -- auto farm her açılışta kapalı başlar
+        createSlider(MM2Page, MODE_T, 1, 3, 2, function(v)
+            local i = setMode(v)
+            pcall(notify, "Farm Modu", MODES[i], 2)
+        end, "")
+        SFX.vFarmOn = function() return farmEnabled end
+    end)()
 
     createSection(MM2Page, "IŞINLANMA")
     createButton(MM2Page, "🗺️  Haritaya Işınlan", function()
@@ -14055,7 +14413,7 @@ end)()
             local hrp0 = myHRP()
             if not hrp0 then return end
             -- Farm açıksa kapat (odadayken coin peşinde koşmasın)
-            if farmOn then
+            if farmOn or (SFX.vFarmOn and SFX.vFarmOn()) then
                 farmOn = false
                 pcall(function() farmToggle.Set(false) end)
                 releaseFarm()
