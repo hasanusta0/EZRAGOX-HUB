@@ -486,6 +486,14 @@ local EN_TEXT = {
     ["💰  Oto Coin Farm (Yerin Altında Yatay)"]="💰  Auto Coin Farm (Horizontal Underground)",
     ["💰  Auto Farm  (Vertex)"]="💰  Auto Farm  (Vertex)",
     ["🧭  Farm Modu  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)"]="🧭  Farm Mode  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)",
+    ["🕳️  Yerin Altından Farm  (Diğer Oyuncular Seni Göremez)"]="🕳️  Underground Farm  (Other Players Can't See You)",
+    ["📡  Işınlanarak Farm  (Kısa Atlamalarla)"]="📡  Teleport Farm  (Short Hops)",
+    ["🏁  Farm Bitince: Reset At (Karakteri Öldür)"]="🏁  When Farm Ends: Reset Character",
+    ["🏁  Farm Bitince: Lobiye Dön ve Bekle"]="🏁  When Farm Ends: Go to Lobby and Wait",
+    ["🏁  Farm Bitince: Şerifi Fling'le (Silah Düşsün)"]="🏁  When Farm Ends: Fling the Sheriff (Gun Drops)",
+    ["🏁  Farm Bitince: Şerifi Fling'le + Silahı Al + Katili Vur"]="🏁  When Farm Ends: Fling Sheriff + Grab Gun + Shoot Murderer",
+    ["FARM BİTİNCE"]="WHEN FARM ENDS",
+    ["🗡️  Katilken Farm Bitince Herkesi Kes  (Kill All • otomatik)"]="🗡️  As Murderer: Kill Everyone When Farm Ends  (Kill All • automatic)",
     ["⚡  Turbo Süzülme (Işınlanmaya Yakın)"]="⚡  Turbo Glide (Near-Teleport)",
     ["🚀  Turbo Hızı"]="🚀  Turbo Speed",
     ["🕳️  Gizli Odaya Git"]="🕳️  Go to Secret Room",
@@ -12905,6 +12913,8 @@ end)()
     --   • roller (GetPlayerData) hub'ın kendi bulduğu remote'tan okunur
     --   • shared.Premium → Settings.PremiumActive
     --   • arayüz: createToggle / createSlider (Vertex'in Dropdown'ı yerine 1-2-3 slider)
+    -- EK SEÇENEKLER (hub'a özel): Yerin Altından Farm (görünmez), Işınlanarak Farm,
+    -- Farm Bitince ne olsun (Reset / Lobi / Şerifi Fling'le / Fling + Silah + Katili Vur).
     -- Yeni local eklememek için her şey bu fonksiyonun içinde tutulur.
     -- =====================================================================
     ;(function()
@@ -12913,6 +12923,21 @@ end)()
         local farmEnabled, farmToken = false, 0
         local farmMode = "Nearest"
         local speed
+        -- Yerin altı / ışınlanma / farm bitince seçenekleri (arayüzden okunur)
+        local underOn, hopOn = true, false
+        local farmSpeed, farmDepth, hopMs, hopDist = 50, 2.5, 200, 16
+        local endMode, endDone = 1, false
+        local murderKillOn = true
+        local retryAt, tries = setmetatable({}, {__mode = "k"}), setmetatable({}, {__mode = "k"})
+        local function tState(text, default)
+            local v = Settings.ToggleStates[text]
+            if v == nil then return default end
+            return v == true
+        end
+        local function sInit(text, mn, mx, df)
+            local v = Settings.SliderValues[text]
+            return (type(v) == "number") and math.clamp(v, mn, mx) or df
+        end
 
         local function TargetModel(target)
             for _, model in pairs(workspace:GetChildren()) do
@@ -13060,11 +13085,9 @@ end)()
             end
         end
 
-        local function resetCharacter()
+        local function lobbyTween()
             pcall(function()
-            if farmMode == "Nearest" then
-                LocalPlayer.Character.Humanoid.Health = 0
-            else
+            do
                 local character = LocalPlayer.Character
                 if not character then return end
 
@@ -13102,7 +13125,7 @@ end)()
             local murdererPosition = MurdererHumanoid and MurdererHumanoid.Position or nil
 
             for _, v in pairs(TargetModel("CoinContainer"):GetChildren()) do
-                if CoinAttribute(v, true) and v.Name == "Coin_Server" and v:FindFirstChild("TouchInterest") and IsAlive(LocalPlayer, roles) then
+                if (retryAt[v] or 0) <= os.clock() and CoinAttribute(v, true) and v.Name == "Coin_Server" and v:FindFirstChild("TouchInterest") and IsAlive(LocalPlayer, roles) then
                     local partPosition = v.CoinVisual.Position
                     local distance = (humanoidRootPart.Position - partPosition).Magnitude
 
@@ -13142,6 +13165,224 @@ end)()
             return nil
         end
 
+        -- Yerinde sabit dur (yerçekimi çekmesin)
+        local function holdFor(t)
+            local h0 = myHRP()
+            if not h0 then task.wait(t) return end
+            local cf0 = h0.CFrame
+            local t0 = os.clock()
+            while alive and farmEnabled and os.clock() - t0 < t do
+                RunService.Heartbeat:Wait()
+                local h1 = myHRP()
+                if not h1 then return end
+                h1.CFrame = cf0
+                h1.AssemblyLinearVelocity = Vector3.zero
+                h1.AssemblyAngularVelocity = Vector3.zero
+            end
+        end
+
+        local function poseCF(p, lie)
+            if lie then return CFrame.new(p) * LIE_ANGLE end
+            return CFrame.new(p)
+        end
+
+        -- Süzülerek ilerle (yatay yatış: yerin altında görünmez)
+        local function flyTowards(target, speedSt, timeout, stopDist, lie)
+            local t0 = os.clock()
+            local cur = nil
+            while alive and farmEnabled and os.clock() - t0 < timeout do
+                local dt = RunService.Heartbeat:Wait()
+                local hrp, hum = myHRP(), myHum()
+                if not hrp or not hum or hum.Health <= 0 then return false end
+                hum.PlatformStand = true
+                if not cur or (hrp.Position - cur).Magnitude > 25 then cur = hrp.Position end
+                local d = target - cur
+                local dist = d.Magnitude
+                if dist <= (stopDist or 0.7) then
+                    hrp.CFrame = poseCF(cur, lie)
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    return true
+                end
+                local step = math.min(dist, speedSt * dt)
+                cur = cur + d.Unit * step
+                hrp.CFrame = poseCF(cur, lie)
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+            end
+            return false
+        end
+
+        -- Işınlanarak ilerle: kısa atlama + ayarlanan süre sabit bekleme (hız 150 st/sn'yi aşmaz)
+        local function hopTo(pt, lie)
+            local hrp, hum = myHRP(), myHum()
+            if not hrp or not hum or hum.Health <= 0 or not farmEnabled then return false end
+            hum.PlatformStand = true
+            local len = (pt - hrp.Position).Magnitude
+            local base = math.clamp(hopMs, 50, 600) / 1000
+            local waitT = math.max(base * (0.9 + math.random() * 0.2), len / 150)
+            hrp.CFrame = poseCF(pt, lie)
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            local w0 = os.clock()
+            while alive and farmEnabled and os.clock() - w0 < waitT do
+                RunService.Heartbeat:Wait()
+                local h1 = myHRP()
+                if not h1 then return false end
+                h1.CFrame = poseCF(pt, lie)
+                h1.AssemblyLinearVelocity = Vector3.zero
+                h1.AssemblyAngularVelocity = Vector3.zero
+            end
+            return alive and farmEnabled
+        end
+
+        -- Coine git ve topla. underOn açıksa karakter zeminin ALTINDA ilerler (diğer oyuncular göremez);
+        -- hopOn açıksa süzülmek yerine kısa atlamalarla ışınlanır. Alındıysa true, alınamadıysa false döner.
+        local function travelCollect(coin)
+            local hrp, hum = myHRP(), myHum()
+            if not hrp or not hum or hum.Health <= 0 then return false end
+            local cp = coin.Position
+            local lie = underOn
+            setNoclip(true)
+            surfacePos = cp
+            if lie then underground = true end
+            pcall(DestroyBody)
+
+            local rayP = RaycastParams.new()
+            rayP.FilterType = Enum.RaycastFilterType.Exclude
+            local rayEx = charsList()
+            if coin.Parent then rayEx[#rayEx + 1] = coin.Parent end
+            rayP.FilterDescendantsInstances = rayEx
+            rayP.RespectCanCollide = true
+            local function groundBelow(from, dist)
+                local r = workspace:Raycast(from, Vector3.new(0, -dist, 0), rayP)
+                return r and r.Position.Y or nil
+            end
+
+            local gy = groundBelow(cp + Vector3.new(0, 0.5, 0), 60)
+            local goalY
+            if lie then
+                goalY = gy and (gy - farmDepth) or (cp.Y - farmDepth - 1.5)
+            else
+                goalY = cp.Y + 1.5
+            end
+            local goal = Vector3.new(cp.X, goalY, cp.Z)
+            local startP = hrp.Position
+            local flat = Vector3.new(goal.X - startP.X, 0, goal.Z - startP.Z).Magnitude
+            local segLen = hopOn and math.clamp(hopDist, 4, 40) or 10
+            local total = hopOn and (goal - startP).Magnitude or flat
+            local n = math.max(1, math.ceil(total / segLen))
+            local reached = true
+            for i = 1, n do
+                if not farmEnabled then reached = false break end
+                local pt = goal
+                if i < n then
+                    local a = i / n
+                    local x = startP.X + (goal.X - startP.X) * a
+                    local z = startP.Z + (goal.Z - startP.Z) * a
+                    local lineY = startP.Y + (goal.Y - startP.Y) * a
+                    if lie then
+                        -- ara noktalarda da zemine göre aynı derinlikte kal
+                        local g = groundBelow(Vector3.new(x, lineY + 5, z), 120)
+                        pt = Vector3.new(x, g and (g - farmDepth) or lineY, z)
+                    else
+                        pt = Vector3.new(x, lineY, z)
+                    end
+                end
+                if hopOn then
+                    reached = hopTo(pt, lie)
+                else
+                    reached = flyTowards(pt, farmSpeed, 10, (i == n) and 0.8 or 2, lie)
+                end
+                if not reached then break end
+            end
+
+            local function collected()
+                return (not coin.Parent) or coin:GetAttribute("Collected") == true or coin.Name == "vertex_collected"
+            end
+            local function touchBest()
+                if not (coin and coin.Parent and firetouchinterest) then return end
+                local ch = LocalPlayer.Character
+                local contactParts = {"HumanoidRootPart", "RightFoot", "LeftFoot", "RightHand", "LeftHand"}
+                for _, name in ipairs(contactParts) do
+                    local bodyPart = ch and ch:FindFirstChild(name)
+                    if bodyPart and bodyPart:IsA("BasePart") then
+                        pcall(firetouchinterest, bodyPart, coin, 0)
+                        pcall(firetouchinterest, bodyPart, coin, 1)
+                    end
+                end
+            end
+
+            if reached and farmEnabled then
+                touchBest()
+                holdFor(0.05)
+                if not collected() and farmEnabled then
+                    -- alınmadıysa yine zeminin altında kal ama coine biraz daha yaklaş
+                    local nearY = lie and math.min(cp.Y - 0.6, (gy or (cp.Y - 3)) - 0.8) or cp.Y
+                    local nearP = Vector3.new(cp.X, nearY, cp.Z)
+                    if hopOn then
+                        hopTo(nearP, lie)
+                    else
+                        flyTowards(nearP, farmSpeed, 1.5, 0.4, lie)
+                    end
+                    touchBest()
+                    holdFor(0.07)
+                end
+            end
+            local got = collected()
+            if got then
+                tries[coin] = nil
+            else
+                tries[coin] = (tries[coin] or 0) + 1
+                retryAt[coin] = os.clock() + (tries[coin] >= 4 and 6 or 0.8)
+            end
+            return got
+        end
+
+        -- FARM BİTİNCE (çanta dolunca) seçilen işlem — tur başına bir kez çalışır
+        local function finishFarm()
+            if endDone then return end
+            endDone = true
+            pcall(releaseFarm)
+            pcall(DestroyBody)
+            local mode = endMode
+            local role = myRole()
+            if role == "Murderer" then
+                -- Katilsen: farm bitince hayatta kalan HERKESİ bıçakla kes (Kill All), kalan olursa 3 tura kadar tekrarla
+                if murderKillOn then
+                    task.wait(0.25)   -- yüzeye çıkıp dik durmayı bekle
+                    for _ = 1, 3 do
+                        local anyAlive = false
+                        for _, p in ipairs(Players:GetPlayers()) do
+                            if p ~= LocalPlayer and isAlive(p) then anyAlive = true break end
+                        end
+                        if not anyAlive or not farmEnabled then break end
+                        pcall(killAll)
+                        local t0 = os.clock()
+                        task.wait(0.1)
+                        while killBusy and os.clock() - t0 < 20 do task.wait(0.1) end
+                    end
+                    return
+                end
+                mode = 1   -- seçenek kapalıysa katil olarak şerifi / katili vuramazsın: reset
+            end
+            if mode == 1 then
+                pcall(function() LocalPlayer.Character.Humanoid.Health = 0 end)
+            elseif mode == 2 then
+                local ok = false
+                pcall(function() ok = lobbyTeleport() end)
+                if not ok then lobbyTween() end
+            elseif mode == 3 then
+                local target = findRole("Sheriff", true) or findRole("Hero", true)
+                if target then
+                    pcall(Settings.FlingKit.fling, target, true)
+                else
+                    pcall(notify, "Farm Bitti", "Şerif / kahraman bulunamadı.", 3)
+                end
+            else
+                pcall(SFX.sheriffSnipe)
+            end
+        end
+
         local function teleportToCoin(targetCoin, humanoidRootPart)
             local targetPosition = targetCoin.CoinVisual.Position
             local distanceToTarget = (humanoidRootPart.Position - targetPosition).Magnitude
@@ -13153,6 +13394,10 @@ end)()
 
             if not TrackCoinBag() and CoinAttribute(targetCoin, true) then
                 local targetCFrame = CFrame.new(targetPosition.X, targetPosition.Y, targetPosition.Z)
+
+                if underOn or hopOn then
+                    return travelCollect(targetCoin)
+                end
 
                 if farmMode == "Randomize" then
                     if distanceToTarget > 200 then
@@ -13189,8 +13434,9 @@ end)()
                 -- Vertex'te burada Kill All / Kill Murderer / Auto Shoot anahtarlarına bakılıyordu;
                 -- bu hub'da bunların sürekli açık anahtarı yok, bu yüzden "açık değil" kabul edilir.
                 local otherAutoOn = false
+                if not TrackCoinBag() then endDone = false end
                 if TrackCoinBag() and humanoidRootPart and humanoid.Health > 0 and IsAlive(LocalPlayer, roles) and ((not otherAutoOn) or (Murderer ~= LocalPlayer.Name and Sheriff ~= LocalPlayer.Name)) then
-                    resetCharacter()
+                    finishFarm()
                     return
                 end
 
@@ -13207,9 +13453,13 @@ end)()
                         if not humanoidRootPart then return end
 
                         if lastTeleportedCoin ~= targetCoin then
-                            BodyVelocity()
-                            teleportToCoin(targetCoin, humanoidRootPart)
-                            lastTeleportedCoin = targetCoin
+                            if not (underOn or hopOn) then BodyVelocity() end
+                            local got = teleportToCoin(targetCoin, humanoidRootPart)
+                            if got == false then
+                                lastTeleportedCoin = nil   -- alınamadı: kısa beklemeden sonra aynı coin tekrar denenir
+                            else
+                                lastTeleportedCoin = targetCoin
+                            end
                         end
                     end
                 end
@@ -13267,6 +13517,18 @@ end)()
 
         local FARM_T = "💰  Auto Farm  (Vertex)"
         local MODE_T = "🧭  Farm Modu  (1 = Nearest + XP, 2 = Nearest, 3 = Randomize)"
+        local UNDER_T = "🕳️  Yerin Altından Farm  (Diğer Oyuncular Seni Göremez)"
+        local HOP_T = "📡  Işınlanarak Farm  (Kısa Atlamalarla)"
+        local SPEED_T = "🐢  Farm Hızı"
+        local DEPTH_T = "⬇️  Yerin Altı Derinliği"
+        local HOPMS_T = "⏱️  Işınlanma Aralığı  •  atılırsan artır"
+        local HOPDIST_T = "📏  Atlama Mesafesi  •  atılırsan azalt"
+        local END_T = {
+            "🏁  Farm Bitince: Reset At (Karakteri Öldür)",
+            "🏁  Farm Bitince: Lobiye Dön ve Bekle",
+            "🏁  Farm Bitince: Şerifi Fling'le (Silah Düşsün)",
+            "🏁  Farm Bitince: Şerifi Fling'le + Silahı Al + Katili Vur",
+        }
         local MODES = {"Nearest + XP Farm", "Nearest", "Randomize"}
         local function setMode(v)
             local i = math.clamp(math.floor((tonumber(v) or 2) + 0.5), 1, 3)
@@ -13274,6 +13536,15 @@ end)()
             return i
         end
         setMode(Settings.SliderValues[MODE_T])
+        underOn = tState(UNDER_T, true)      -- varsayılan AÇIK: karakter yerin altında, görünmez
+        hopOn = tState(HOP_T, false)
+        farmSpeed = sInit(SPEED_T, 10, 100, 50)
+        farmDepth = sInit(DEPTH_T, 1, 6, 2.5)
+        hopMs = sInit(HOPMS_T, 50, 600, 200)
+        hopDist = sInit(HOPDIST_T, 4, 40, 16)
+        for i, t in ipairs(END_T) do
+            if Settings.ToggleStates[t] == true then endMode = i end
+        end
 
         farmToggle = createToggle(MM2Page, FARM_T, false, function(v)
             farmEnabled = v and true or false
@@ -13283,9 +13554,11 @@ end)()
             if not farmEnabled then
                 if currentTween then pcall(function() currentTween:Cancel() end) currentTween = nil end
                 pcall(DestroyBody)
+                pcall(releaseFarm)   -- yerin altındaysak yüzeye çık, dik dur
                 return
             end
             lastTeleportedCoin = nil
+            endDone = false
             startFarm(my)
         end, false)
         farmToggle.Set(false, true) -- auto farm her açılışta kapalı başlar
@@ -13293,6 +13566,37 @@ end)()
             local i = setMode(v)
             pcall(notify, "Farm Modu", MODES[i], 2)
         end, "")
+        createToggle(MM2Page, UNDER_T, true, function(v)
+            underOn = v and true or false
+        end, false)
+        createToggle(MM2Page, HOP_T, false, function(v)
+            hopOn = v and true or false
+        end, false)
+        createSlider(MM2Page, SPEED_T, 10, 100, 50, function(v) farmSpeed = v end, " st/sn")
+        createSlider(MM2Page, DEPTH_T, 1, 6, 2.5, function(v) farmDepth = v end, " stud")
+        createSlider(MM2Page, HOPMS_T, 50, 600, 200, function(v) hopMs = v end, " ms")
+        createSlider(MM2Page, HOPDIST_T, 4, 40, 16, function(v) hopDist = v end, " st")
+
+        createSection(MM2Page, "FARM BİTİNCE")
+        local KILL_T = "🗡️  Katilken Farm Bitince Herkesi Kes  (Kill All • otomatik)"
+        murderKillOn = tState(KILL_T, true)
+        createToggle(MM2Page, KILL_T, true, function(v)
+            murderKillOn = v and true or false
+        end, false)
+        local endObjs = {}
+        for i, t in ipairs(END_T) do
+            endObjs[i] = createToggle(MM2Page, t, i == endMode, function(v)
+                if v then
+                    endMode = i
+                    for j, o in ipairs(endObjs) do
+                        if j ~= i then o.Set(false, true) end
+                    end
+                elseif endMode == i then
+                    endObjs[i].Set(true, true)   -- en az biri seçili kalsın
+                end
+            end, false)
+        end
+        for i, o in ipairs(endObjs) do o.Set(i == endMode, true, true) end
         SFX.vFarmOn = function() return farmEnabled end
     end)()
 
