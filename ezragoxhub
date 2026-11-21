@@ -8573,12 +8573,22 @@ end)()
             return
         end
 
+        -- Fling YALNIZCA haritadayken ve hayattayken çalışır: lobideyken / ölüyken kimse fırlatılmaz
+        local hum0 = myHum()
+        if dead or not hum0 or hum0.Health <= 0 or SFX.inLobby() then
+            notify("Silah", "Silah birinde. Fırlatma sadece haritadayken ve hayattayken çalışır.", 3)
+            return
+        end
+
         SFX.gunKeyBusy = true
         task.spawn(function()
             local HB = RunService.Heartbeat
             pcall(function()
                 -- 1) Silahı taşıyan kişiye fling at (öldürme modu: ölünce silah düşer)
                 for _ = 1, 4 do
+                    -- İşlem sırasında ölürsen ya da lobiye dönersen (tur bitti) hemen dur
+                    local hr = myHum()
+                    if not hr or hr.Health <= 0 or SFX.inLobby() then return end
                     local h = gunHeldByAnotherPlayer()
                     if not h then break end            -- silah artık kimsede değil (yere düşmüş olabilir)
                     notify("Silah", h.DisplayName .. " silahı taşıyor, fırlatılıyor...", 1.5)
@@ -8597,7 +8607,7 @@ end)()
                     while alive and not hasGun() and not gunDropInfo() and os.clock() - tw < 45 do
                         if not gunHeldByAnotherPlayer() then break end
                         local hw = myHum()
-                        if not hw or hw.Health <= 0 then return end
+                        if not hw or hw.Health <= 0 or SFX.inLobby() then return end
                         HB:Wait()
                     end
                     if not hasGun() and not gunDropInfo() then
