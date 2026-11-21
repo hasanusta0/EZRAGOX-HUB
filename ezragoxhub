@@ -12370,6 +12370,7 @@ end)()
         local fx, flash, shakeBurst = 0, 0, 0
         local cc, bloom = nil, nil
         local hidingMe, hiddenModels, decalOrig = false, {}, {}
+        local flungOnce = {}   -- bu basışta zaten denenen oyuncular: sol tık bırakılana kadar tekrar fırlatılmaz
 
         ---------------- ses ----------------
         local function ensureSound()
@@ -12793,7 +12794,7 @@ end)()
             local cand = m and Players:GetPlayerFromCharacter(m)
             if cand and cand ~= LocalPlayer then
                 local h2 = m:FindFirstChildOfClass("Humanoid")
-                if h2 and h2.Health > 0 then pl = cand end
+                if h2 and h2.Health > 0 and not flungOnce[cand] then pl = cand end
             end
             if pl then
                 if pl ~= aimPl then aimPl, aimSince = pl, os.clock() end
@@ -12805,6 +12806,7 @@ end)()
                     local dir = (hit - from)
                     dir = (dir.Magnitude > 0.1) and dir.Unit or head.CFrame.LookVector
                     aimPl, aimSince = nil, 0
+                    flungOnce[pl] = true     -- tek deneme: aynı basışta aynı oyuncuya bir daha fırlatma yapılmaz
                     flash = 0.7
                     shakeBurst = 1
                     hideBeams()
@@ -12829,6 +12831,7 @@ end)()
         bind(UserInputService.InputEnded, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 lmbDown = false
+                flungOnce = {}
                 hideBeams()
                 clearAimGlow()
                 aimPl, aimSince = nil, 0
@@ -12841,6 +12844,7 @@ end)()
             armed = not armed
             if not armed then
                 lmbDown = false
+                flungOnce = {}
                 hideBeams()
                 clearAimGlow()
                 aimPl, aimSince = nil, 0
