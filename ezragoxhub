@@ -12340,29 +12340,36 @@ end)()
     Settings.FlingKit.addModes(MM2Page)
 
     ---------------------------------------------------------
-    -- 🔥 HOMELANDER LAZERİ
+    -- 🔥 HOMELANDER LAZERİ  (v2)
     -- Atanan tuşa bas = lazer AKTİF, tekrar bas = tamamen KAPALI.
-    -- Aktifken SOL TIK basılı tuttukça gözlerinden kırmızı lazer çıkar (yalnızca SENİN ekranında görünür),
-    -- sol tık bırakılınca lazer ve ses anında biter.
-    -- Ses: baştan çalar; basılı tutmaya devam edersen ses sona gelince 5. saniyeden sonraki kısım tekrar döner.
-    -- Lazer bir oyuncuya LAZER_SURESI sn boyunca değerse o oyuncu haritadan fırlatılır ve ölür.
-    -- Fırlatma sunucuda ancak karakterinin hedefe çarpmasıyla olur; bu yüzden gerçek karakterin
-    -- kısa süre hedefe gidip geri döner. Sen ise kameranla yerinde kalırsın: bulunduğun yerde
-    -- yerel bir kopyan (heykel) durur, kamera ona bakar, iş bitince eski haline dönersin.
+    -- Aktifken SOL TIK basılı tuttukça gözlerinden lazer çıkar; bırakınca lazer ve ses anında biter.
+    -- Her şey (lazer, ekran kızarması, sarsıntı, yanma, uçuş) yalnızca SENİN ekranında görünür.
+    --  • Lazer: parlak çekirdek + kırmızı hale, göz parlaması, vuruş noktasında kıvılcım / ışık.
+    --  • Ekran: lazer süresince kırmızı ton + parlama, hafif kamera sarsıntısı (vuruşta artar).
+    --  • Hedef lazere tutulurken kızarıp ısınır; lazer vurunca senin ekranında hedefin yerel bir kopyası
+    --    lazer yönünde alev alarak havaya savrulur ve kül olur (gerçek hedef senin ekranından gizlenir).
+    --  • Gerçek fırlatma sunucuda yalnızca karakterinin çarpmasıyla olur: karakterin arka planda gidip döner,
+    --    ama KENDİN ekranında görünmezsin / kamera bulunduğun yerde sabit kalır; gidip gelmeyi görmezsin.
     ---------------------------------------------------------
     ;(function()
         local LASER_SES_ID = 131954439917683  -- lazer sesi
         local SES_DONGU_BASI = 5              -- basılı tutarken ses bitince bu saniyeden (5. sn) itibaren devam eder
         local SES_SEVIYE = 1                  -- ses yüksekliği (0-10)
-        local LAZER_SURESI = 0.35             -- hedefe bu kadar sn değerse fırlatılır
+        local LAZER_SURESI = 0.5              -- hedefe bu kadar sn değerse vurulur (ısınma süresi)
         local MENZIL = 400                    -- lazer menzili (stud)
+        local EKRAN_EFEKTI = true             -- lazer sırasında ekran kızarsın (false = kapalı)
+        local SARSINTI = 1                    -- kamera sarsıntısı çarpanı (0 = yok, 2 = çok)
         local RS_NAME = "EZRAGOX_HomelanderLaser"
+        local Lighting = game:GetService("Lighting")
+
         local armed, lmbDown = false, false
-        local beams, spark = {}, nil
-        local aimPl, aimSince = nil, 0
-        local statue, statueHum = nil, nil
-        local holdView = false
+        local beams, eyes, spark, hitEmit, fxFolder = {}, {}, nil, nil, nil
+        local aimPl, aimSince, aimHL = nil, 0, nil
+        local statue, statueHum, holdView = nil, nil, false
         local snd, soundOn = nil, false
+        local fx, flash, shakeBurst = 0, 0, 0
+        local cc, bloom = nil, nil
+        local hidingMe, hiddenModels, decalOrig = false, {}, {}
 
         ---------------- ses ----------------
         local function ensureSound()
@@ -12396,47 +12403,226 @@ end)()
             end
         end
 
-        ---------------- lazer parçaları ----------------
-        local function newBeam()
+        ---------------- efekt nesneleri ----------------
+        local function getFolder()
+            if fxFolder and fxFolder.Parent then return fxFolder end
+            fxFolder = Instance.new("Folder")
+            fxFolder.Name = "EZRAGOX_LaserFX"
+            fxFolder.Parent = workspace
+            return fxFolder
+        end
+        local function mkPart(name, color, size)
             local b = Instance.new("Part")
-            b.Name = "EZRAGOX_LaserBeam"
+            b.Name = name
             b.Anchored, b.CanCollide, b.CanQuery, b.CanTouch, b.CastShadow = true, false, false, false, false
             b.Material = Enum.Material.Neon
-            b.Color = Color3.fromRGB(255, 25, 25)
-            b.Size = Vector3.new(0.18, 0.18, 1)
+            b.Color = color
+            b.Size = size
             b.Transparency = 1
-            b.Parent = workspace
+            b.Parent = getFolder()
             return b
         end
         local function ensureParts()
             for i = 1, 2 do
-                if not (beams[i] and beams[i].Parent) then beams[i] = newBeam() end
+                local bm = beams[i]
+                if not (bm and bm.core.Parent and bm.glow.Parent) then
+                    beams[i] = {
+                        core = mkPart("Core", Color3.fromRGB(255, 235, 235), Vector3.new(0.07, 0.07, 1)),
+                        glow = mkPart("Glow", Color3.fromRGB(255, 25, 25), Vector3.new(0.3, 0.3, 1)),
+                    }
+                end
+                if not (eyes[i] and eyes[i].Parent) then
+                    local e = mkPart("Eye", Color3.fromRGB(255, 60, 60), Vector3.new(0.3, 0.3, 0.3))
+                    e.Shape = Enum.PartType.Ball
+                    local l = Instance.new("PointLight")
+                    l.Color = Color3.fromRGB(255, 40, 40)
+                    l.Range = 7
+                    l.Brightness = 2
+                    l.Parent = e
+                    eyes[i] = e
+                end
             end
             if not (spark and spark.Parent) then
-                spark = Instance.new("Part")
-                spark.Name = "EZRAGOX_LaserSpark"
+                spark = mkPart("Spark", Color3.fromRGB(255, 150, 60), Vector3.new(1.4, 1.4, 1.4))
                 spark.Shape = Enum.PartType.Ball
-                spark.Size = Vector3.new(1.4, 1.4, 1.4)
-                spark.Anchored, spark.CanCollide, spark.CanQuery, spark.CanTouch, spark.CastShadow = true, false, false, false, false
-                spark.Material = Enum.Material.Neon
-                spark.Color = Color3.fromRGB(255, 120, 40)
-                spark.Transparency = 1
-                spark.Parent = workspace
                 local l = Instance.new("PointLight")
-                l.Color = Color3.fromRGB(255, 40, 40)
-                l.Range = 14
-                l.Brightness = 3
+                l.Color = Color3.fromRGB(255, 50, 30)
+                l.Range = 16
+                l.Brightness = 4
                 l.Parent = spark
+                local pe = Instance.new("ParticleEmitter")
+                pe.Rate = 0
+                pe.Lifetime = NumberRange.new(0.25, 0.6)
+                pe.Speed = NumberRange.new(14, 38)
+                pe.SpreadAngle = Vector2.new(70, 70)
+                pe.Acceleration = Vector3.new(0, -35, 0)
+                pe.LightEmission = 1
+                pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.45), NumberSequenceKeypoint.new(1, 0)})
+                pe.Color = ColorSequence.new(Color3.fromRGB(255, 230, 160), Color3.fromRGB(255, 40, 20))
+                pe.Parent = spark
+                hitEmit = pe
             end
         end
-        local function hideParts()
-            for _, b in ipairs(beams) do if b and b.Parent then b.Transparency = 1 end end
+        local function hideBeams()
+            for _, bm in ipairs(beams) do
+                if bm.core and bm.core.Parent then bm.core.Transparency = 1 end
+                if bm.glow and bm.glow.Parent then bm.glow.Transparency = 1 end
+            end
+            for _, e in ipairs(eyes) do if e and e.Parent then e.Transparency = 1 end end
             if spark and spark.Parent then spark.Transparency = 1 end
         end
-        local function destroyParts()
-            for _, b in ipairs(beams) do pcall(function() b:Destroy() end) end
-            beams = {}
-            if spark then pcall(function() spark:Destroy() end) spark = nil end
+        local function clearAimGlow()
+            if aimHL then pcall(function() aimHL:Destroy() end) aimHL = nil end
+        end
+        local function setAimGlow(pl, k)
+            local c = pl and pl.Character
+            if not c then clearAimGlow() return end
+            if not (aimHL and aimHL.Parent == c) then
+                clearAimGlow()
+                aimHL = Instance.new("Highlight")
+                aimHL.Name = "EZRAGOX_LaserHeat"
+                aimHL.FillColor = Color3.fromRGB(255, 30, 20)
+                aimHL.OutlineColor = Color3.fromRGB(255, 170, 60)
+                aimHL.DepthMode = Enum.HighlightDepthMode.Occluded
+                aimHL.Parent = c
+            end
+            aimHL.FillTransparency = 0.85 - 0.6 * k
+            aimHL.OutlineTransparency = 0.5 - 0.5 * k
+        end
+
+        ---------------- ekran efekti ----------------
+        local function updateScreenFx(k)
+            if not EKRAN_EFEKTI then return end
+            if k <= 0.002 then
+                if cc then cc.Enabled = false end
+                if bloom then bloom.Enabled = false end
+                return
+            end
+            if not (cc and cc.Parent) then
+                cc = Instance.new("ColorCorrectionEffect")
+                cc.Name = "EZRAGOX_LaserCC"
+                cc.Parent = Lighting
+            end
+            if not (bloom and bloom.Parent) then
+                bloom = Instance.new("BloomEffect")
+                bloom.Name = "EZRAGOX_LaserBloom"
+                bloom.Threshold = 0.85
+                bloom.Size = 26
+                bloom.Parent = Lighting
+            end
+            cc.Enabled, bloom.Enabled = true, true
+            cc.TintColor = Color3.new(1, 1, 1):Lerp(Color3.fromRGB(255, 105, 105), k)
+            cc.Saturation = 0.25 * k
+            cc.Contrast = 0.12 * k
+            bloom.Intensity = 0.3 + 1.2 * k
+        end
+
+        ---------------- gizleme (yalnızca kendi ekranında) ----------------
+        local function applyHide(model)
+            if not model then return end
+            for _, d in ipairs(model:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    d.LocalTransparencyModifier = 1
+                elseif d:IsA("Decal") or d:IsA("Texture") then
+                    if decalOrig[d] == nil then decalOrig[d] = d.Transparency end
+                    d.Transparency = 1
+                end
+            end
+        end
+        local function unhideAll()
+            hidingMe = false
+            for _, m in ipairs(hiddenModels) do
+                pcall(function()
+                    for _, d in ipairs(m:GetDescendants()) do
+                        if d:IsA("BasePart") then d.LocalTransparencyModifier = 0 end
+                    end
+                end)
+            end
+            for d, o in pairs(decalOrig) do
+                pcall(function() if d.Parent then d.Transparency = o end end)
+            end
+            hiddenModels, decalOrig = {}, {}
+        end
+
+        ---------------- hedefin sahte (yerel) uçuşu ----------------
+        local function launchFake(pl, dir)
+            local c = pl and pl.Character
+            local hrp = c and c:FindFirstChild("HumanoidRootPart")
+            if not hrp then return end
+            local was = c.Archivable
+            c.Archivable = true
+            local ok, g = pcall(function() return c:Clone() end)
+            c.Archivable = was
+            if not ok or not g then return end
+            for _, d in ipairs(g:GetDescendants()) do
+                if d:IsA("LuaSourceContainer") or d:IsA("Tool") or d:IsA("Humanoid") or d:IsA("ForceField")
+                    or d:IsA("BillboardGui") or d:IsA("Highlight") then
+                    pcall(function() d:Destroy() end)
+                end
+            end
+            local hrp2 = g:FindFirstChild("HumanoidRootPart")
+            if not hrp2 then pcall(function() g:Destroy() end) return end
+            for _, d in ipairs(g:GetDescendants()) do
+                if d:IsA("BasePart") then
+                    d.Anchored, d.CanCollide, d.CanTouch, d.CanQuery = false, false, false, false
+                    d.LocalTransparencyModifier = 0
+                end
+            end
+            g.Name = "EZRAGOX_LaserFlight"
+            g.Parent = getFolder()
+
+            local flat = Vector3.new(dir.X, 0, dir.Z)
+            flat = (flat.Magnitude > 0.05) and flat.Unit or Vector3.new(0, 0, -1)
+            hrp2.AssemblyLinearVelocity = flat * 140 + Vector3.new(0, 58, 0)
+            hrp2.AssemblyAngularVelocity = Vector3.new((math.random() - 0.5) * 22, (math.random() - 0.5) * 22, (math.random() - 0.5) * 22)
+            -- Yerçekimini azalt: uzun, süzülen bir uçuş
+            local att = Instance.new("Attachment")
+            att.Parent = hrp2
+            local vf = Instance.new("VectorForce")
+            vf.Attachment0 = att
+            vf.RelativeTo = Enum.ActuatorRelativeTo.World
+            vf.ApplyAtCenterOfMass = true
+            vf.Force = Vector3.new(0, hrp2.AssemblyMass * workspace.Gravity * 0.72, 0)
+            vf.Parent = hrp2
+            -- Yanma efektleri
+            local hl = Instance.new("Highlight")
+            hl.FillColor = Color3.fromRGB(255, 40, 20)
+            hl.OutlineColor = Color3.fromRGB(255, 190, 80)
+            hl.FillTransparency = 0.2
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = g
+            local fire = Instance.new("Fire")
+            fire.Size, fire.Heat = 8, 8
+            fire.Color = Color3.fromRGB(255, 150, 40)
+            fire.SecondaryColor = Color3.fromRGB(200, 20, 10)
+            fire.Parent = hrp2
+            local pe = Instance.new("ParticleEmitter")
+            pe.Rate = 70
+            pe.Lifetime = NumberRange.new(0.4, 0.9)
+            pe.Speed = NumberRange.new(6, 16)
+            pe.SpreadAngle = Vector2.new(180, 180)
+            pe.LightEmission = 1
+            pe.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.7), NumberSequenceKeypoint.new(1, 0)})
+            pe.Color = ColorSequence.new(Color3.fromRGB(255, 220, 140), Color3.fromRGB(255, 50, 20))
+            pe.Parent = hrp2
+
+            task.spawn(function()
+                local t0, life = os.clock(), 2.8
+                local orig = {}
+                for _, d in ipairs(g:GetDescendants()) do
+                    if d:IsA("BasePart") or d:IsA("Decal") or d:IsA("Texture") then orig[d] = d.Transparency end
+                end
+                while alive and g.Parent and os.clock() - t0 < life do
+                    local a = math.clamp((os.clock() - t0 - 1.5) / (life - 1.5), 0, 1)
+                    for pt, o in pairs(orig) do
+                        if pt.Parent then pt.Transparency = o + (1 - o) * a end
+                    end
+                    hl.FillTransparency = 0.2 + 0.8 * a
+                    if a > 0.4 then pe.Rate = 0 fire.Enabled = false end
+                    task.wait()
+                end
+                pcall(function() g:Destroy() end)
+            end)
         end
 
         ---------------- fırlatırken kamerayı yerinde tut ----------------
@@ -12454,13 +12640,14 @@ end)()
                 elseif d:IsA("BasePart") then
                     d.Anchored = true
                     d.CanCollide = false
+                    d.LocalTransparencyModifier = 0
                 end
             end
             local gh = g:FindFirstChildOfClass("Humanoid")
             if not gh then pcall(function() g:Destroy() end) return end
             gh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
             g.Name = "EZRAGOX_LaserStatue"
-            g.Parent = workspace
+            g.Parent = getFolder()
             statue, statueHum = g, gh
         end
         local function stopStatue()
@@ -12472,7 +12659,7 @@ end)()
             local h = myHum()
             if cam and h then pcall(function() cam.CameraSubject = h end) end
         end
-        local function flingFromHere(target)
+        local function flingFromHere(target, dir)
             local kit = Settings.FlingKit
             if not kit or kit.isBusy() then return end
             startStatue()
@@ -12485,11 +12672,19 @@ end)()
                     end
                 end)
             end
+            -- Önce hedefin yerel uçuş kopyası oluşturulur, sonra gerçek hedef + gerçek karakterin ekranından gizlenir
+            pcall(launchFake, target, dir)
+            clearAimGlow()
+            hiddenModels = {}
+            if LocalPlayer.Character then hiddenModels[#hiddenModels + 1] = LocalPlayer.Character end
+            if target.Character then hiddenModels[#hiddenModels + 1] = target.Character end
+            hidingMe = true
             kit.fling(target, true)
             task.spawn(function()
                 local t0 = os.clock()
                 task.wait(0.15)
                 while alive and kit.isBusy() and os.clock() - t0 < 14 do task.wait(0.1) end
+                unhideAll()
                 stopStatue()
             end)
         end
@@ -12502,10 +12697,9 @@ end)()
             local ex = {}
             if LocalPlayer.Character then ex[#ex + 1] = LocalPlayer.Character end
             if statue then ex[#ex + 1] = statue end
+            if fxFolder then ex[#ex + 1] = fxFolder end
             local gh = workspace:FindFirstChild("EZRAGOX_Ghost")
             if gh then ex[#ex + 1] = gh end
-            for _, b in ipairs(beams) do ex[#ex + 1] = b end
-            if spark then ex[#ex + 1] = spark end
             local rp = RaycastParams.new()
             rp.FilterType = Enum.RaycastFilterType.Exclude
             rp.FilterDescendantsInstances = ex
@@ -12514,21 +12708,49 @@ end)()
             return pos, res
         end
 
-        local function step()
-            if not alive then
-                pcall(function() RunService:UnbindFromRenderStep(RS_NAME) end)
-                destroyParts()
-                stopStatue()
-                soundStop()
-                if snd then pcall(function() snd:Destroy() end) snd = nil end
-                return
-            end
+        local function cleanup()
+            pcall(function() RunService:UnbindFromRenderStep(RS_NAME) end)
+            soundStop()
+            if snd then pcall(function() snd:Destroy() end) snd = nil end
+            clearAimGlow()
+            unhideAll()
+            stopStatue()
+            if cc then pcall(function() cc:Destroy() end) cc = nil end
+            if bloom then pcall(function() bloom:Destroy() end) bloom = nil end
+            if fxFolder then pcall(function() fxFolder:Destroy() end) fxFolder = nil end
+            beams, eyes, spark, hitEmit = {}, {}, nil, nil
+        end
+
+        local function step(dt)
+            if not alive then cleanup() return end
             local ch = LocalPlayer.Character
             local head = ch and ch:FindFirstChild("Head")
             local hum = myHum()
             local busy = Settings.FlingKit and Settings.FlingKit.isBusy()
-            if not (armed and lmbDown and head and hum and hum.Health > 0) or busy or SFX.invisOn then
-                hideParts()
+            local firing = armed and lmbDown and head ~= nil and hum ~= nil and hum.Health > 0 and not busy and not SFX.invisOn
+
+            -- Fırlatma sürerken gerçek karakterin ve hedefin senin ekranında gizli kalsın (her karede)
+            if hidingMe then
+                for _, m in ipairs(hiddenModels) do applyHide(m) end
+            end
+
+            -- Ekran kızarması + kamera sarsıntısı
+            if firing then fx = math.min(1, fx + dt * 5) else fx = math.max(0, fx - dt * 3.5) end
+            flash = math.max(0, flash - dt * 3)
+            shakeBurst = math.max(0, shakeBurst - dt * 5)
+            updateScreenFx(math.clamp(fx * 0.8 + flash, 0, 1))
+            local amp = (fx * 0.0022 + shakeBurst * 0.012) * SARSINTI
+            if amp > 0.0001 then
+                local cam = workspace.CurrentCamera
+                if cam then
+                    cam.CFrame = cam.CFrame * CFrame.Angles(
+                        (math.random() - 0.5) * amp * 2, (math.random() - 0.5) * amp * 2, (math.random() - 0.5) * amp)
+                end
+            end
+
+            if not firing then
+                hideBeams()
+                clearAimGlow()
                 aimPl, aimSince = nil, 0
                 if soundOn then soundStop() end
                 return
@@ -12536,18 +12758,34 @@ end)()
             ensureParts()
             if not soundOn then soundStart() end
             local hit, res = aimRay()
-            if not hit then hideParts() return end
+            if not hit then hideBeams() return end
+
+            -- Lazer: parlak çekirdek + kırmızı hale (titreşimli), iki gözden aynı noktaya
+            local t = os.clock()
+            local flick = 0.85 + 0.3 * math.random()
+            local pulse = 1 + 0.25 * math.sin(t * 38)
             local offs = {Vector3.new(-0.22, 0.12, -0.55), Vector3.new(0.22, 0.12, -0.55)}
+            local jitter = Vector3.new((math.random() - 0.5), (math.random() - 0.5), (math.random() - 0.5)) * 0.18
+            local tip = hit + jitter
             for i = 1, 2 do
                 local from = (head.CFrame * CFrame.new(offs[i])).Position
-                local len = (hit - from).Magnitude
-                local b = beams[i]
-                b.Size = Vector3.new(0.18, 0.18, math.max(len, 0.1))
-                b.CFrame = CFrame.lookAt(from, hit) * CFrame.new(0, 0, -len / 2)
-                b.Transparency = 0.05
+                local len = (tip - from).Magnitude
+                local bm = beams[i]
+                local cf = CFrame.lookAt(from, tip) * CFrame.new(0, 0, -len / 2)
+                bm.core.Size = Vector3.new(0.07 * flick, 0.07 * flick, math.max(len, 0.1))
+                bm.core.CFrame = cf
+                bm.core.Transparency = 0
+                bm.glow.Size = Vector3.new(0.3 * pulse * flick, 0.3 * pulse * flick, math.max(len, 0.1))
+                bm.glow.CFrame = cf
+                bm.glow.Transparency = 0.5
+                eyes[i].Size = Vector3.new(0.3, 0.3, 0.3) * pulse
+                eyes[i].CFrame = CFrame.new(from)
+                eyes[i].Transparency = 0.05
             end
+            spark.Size = Vector3.new(1.4, 1.4, 1.4) * (0.8 + 0.5 * math.random())
             spark.CFrame = CFrame.new(hit)
-            spark.Transparency = 0.15
+            spark.Transparency = 0.1
+            if hitEmit then hitEmit:Emit(4) end
 
             -- Lazer bir oyuncuya mı değiyor?
             local pl
@@ -12559,19 +12797,28 @@ end)()
             end
             if pl then
                 if pl ~= aimPl then aimPl, aimSince = pl, os.clock() end
-                if os.clock() - aimSince >= LAZER_SURESI then
+                local k = math.clamp((os.clock() - aimSince) / LAZER_SURESI, 0, 1)
+                setAimGlow(pl, k)
+                shakeBurst = math.max(shakeBurst, 0.18 + 0.25 * k)
+                if k >= 1 then
+                    local from = head.Position
+                    local dir = (hit - from)
+                    dir = (dir.Magnitude > 0.1) and dir.Unit or head.CFrame.LookVector
                     aimPl, aimSince = nil, 0
-                    hideParts()
+                    flash = 0.7
+                    shakeBurst = 1
+                    hideBeams()
                     soundStop()
-                    flingFromHere(pl)
+                    flingFromHere(pl, dir)
                 end
             else
                 aimPl, aimSince = nil, 0
+                clearAimGlow()
             end
         end
-        RunService:BindToRenderStep(RS_NAME, Enum.RenderPriority.Camera.Value + 1, function()
-            local ok = pcall(step)
-            if not ok then hideParts() end
+        RunService:BindToRenderStep(RS_NAME, Enum.RenderPriority.Camera.Value + 1, function(dt)
+            local ok = pcall(step, dt)
+            if not ok then hideBeams() end
         end)
 
         -- Sol tık: basılı tuttukça ateş, bırakınca lazer + ses anında biter
@@ -12582,7 +12829,8 @@ end)()
         bind(UserInputService.InputEnded, function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 lmbDown = false
-                hideParts()
+                hideBeams()
+                clearAimGlow()
                 aimPl, aimSince = nil, 0
                 soundStop()
             end
@@ -12593,7 +12841,8 @@ end)()
             armed = not armed
             if not armed then
                 lmbDown = false
-                hideParts()
+                hideBeams()
+                clearAimGlow()
                 aimPl, aimSince = nil, 0
                 soundStop()
                 notify("Homelander Lazeri", "Tamamen kapatıldı.", 2)
