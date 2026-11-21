@@ -8584,8 +8584,8 @@ end)()
         task.spawn(function()
             local HB = RunService.Heartbeat
             pcall(function()
-                -- 1) Silahı taşıyan kişiye fling at (öldürme modu: ölünce silah düşer)
-                for _ = 1, 4 do
+                -- 1) Silahı taşıyan kişiye BİR KERE fling at (öldürme modu: ölünce silah düşer); tekrar denemez
+                for _ = 1, 1 do
                     -- İşlem sırasında ölürsen ya da lobiye dönersen (tur bitti) hemen dur
                     local hr = myHum()
                     if not hr or hr.Health <= 0 or SFX.inLobby() then return end
