@@ -140,6 +140,8 @@ local Settings = {
     MM2SnipeMouse = false,
     MM2LoopFlingKey = Enum.KeyCode.Unknown, -- MM2: sürekli fırlatmayı aç/kapa tuşu
     MM2LoopFlingMouse = false,
+    MM2LaserKey = Enum.KeyCode.Unknown, -- MM2: Homelander lazerini aç/kapa tuşu (varsayılan atanmamış)
+    MM2LaserMouse = false,
     MM2Lobby = false,               -- MM2: kaydedilen lobi konumu {x=,y=,z=}
     MM2GunSound = 0,                -- MM2: seçili silah sesi (0 = orijinal ses)
     SelectedSkyId = nil,             -- Son seçilen gökyüzü
@@ -188,6 +190,8 @@ local function saveConfig()
                 MM2SnipeMouse = Settings.MM2SnipeMouse and Settings.MM2SnipeMouse.Name or nil,
                 MM2LoopFlingKey = Settings.MM2LoopFlingKey.Name,
                 MM2LoopFlingMouse = Settings.MM2LoopFlingMouse and Settings.MM2LoopFlingMouse.Name or nil,
+                MM2LaserKey = Settings.MM2LaserKey.Name,
+                MM2LaserMouse = Settings.MM2LaserMouse and Settings.MM2LaserMouse.Name or nil,
                 MM2FlingMouse = Settings.MM2FlingMouse and Settings.MM2FlingMouse.Name or nil,
                 MM2InvisMouse = Settings.MM2InvisMouse and Settings.MM2InvisMouse.Name or nil,
                 MM2Lobby = type(Settings.MM2Lobby) == "table" and Settings.MM2Lobby or nil,
@@ -244,6 +248,8 @@ local function loadConfig()
                 if data.MM2SnipeMouse and Enum.UserInputType[data.MM2SnipeMouse] then Settings.MM2SnipeMouse = Enum.UserInputType[data.MM2SnipeMouse] end
                 if data.MM2LoopFlingKey and Enum.KeyCode[data.MM2LoopFlingKey] then Settings.MM2LoopFlingKey = Enum.KeyCode[data.MM2LoopFlingKey] end
                 if data.MM2LoopFlingMouse and Enum.UserInputType[data.MM2LoopFlingMouse] then Settings.MM2LoopFlingMouse = Enum.UserInputType[data.MM2LoopFlingMouse] end
+                if data.MM2LaserKey and Enum.KeyCode[data.MM2LaserKey] then Settings.MM2LaserKey = Enum.KeyCode[data.MM2LaserKey] end
+                if data.MM2LaserMouse and Enum.UserInputType[data.MM2LaserMouse] then Settings.MM2LaserMouse = Enum.UserInputType[data.MM2LaserMouse] end
                 if data.MM2FlingMouse and Enum.UserInputType[data.MM2FlingMouse] then Settings.MM2FlingMouse = Enum.UserInputType[data.MM2FlingMouse] end
                 if data.MM2InvisMouse and Enum.UserInputType[data.MM2InvisMouse] then Settings.MM2InvisMouse = Enum.UserInputType[data.MM2InvisMouse] end
                 if tonumber(data.MM2GunSound) then Settings.MM2GunSound = math.clamp(math.floor(tonumber(data.MM2GunSound)), 0, 5) end
@@ -10043,6 +10049,72 @@ end)()
     end)
 
     useMM2Category("SHERIFF")
+    ---------------------------------------------------------
+    -- SAHTE SİLAH TEŞHİSİ
+    -- Sahte silahın herkese görünmesi için eşyayı SUNUCU vermelidir (istemcide yaratılan eşya replike olmaz).
+    -- Bu bölüm oyunda "fake / sahte / decoy" adlı eşya ve remote'ları bulup F9 konsoluna yazar;
+    -- oyuncunun çantasında / elinde zaten sunucunun verdiği bir sahte silah varsa onu kuşanır.
+    ---------------------------------------------------------
+    createSection(MM2Page, "🎭  SAHTE SİLAH (TEŞHİS)")
+    ;(function()
+        local function isFakeName(n)
+            n = string.lower(tostring(n))
+            return string.find(n, "fake", 1, true) or string.find(n, "sahte", 1, true) or string.find(n, "decoy", 1, true)
+        end
+        createButton(MM2Page, "🔎  Sahte Silah Teşhisi (F9'a yazar) + Varsa Kuşan", function()
+            local found, seen = {}, {}
+            local function scan(root, label)
+                if not root then return end
+                local ok, list = pcall(function() return root:GetDescendants() end)
+                if not ok then return end
+                for _, d in ipairs(list) do
+                    if isFakeName(d.Name) and not seen[d] and #found < 80 then
+                        seen[d] = true
+                        found[#found + 1] = label .. " | " .. d.ClassName .. " | " .. d:GetFullName()
+                    end
+                end
+            end
+            scan(game:GetService("ReplicatedStorage"), "ReplicatedStorage")
+            scan(game:GetService("StarterPack"), "StarterPack")
+            scan(LocalPlayer, "Oyuncu")
+            scan(LocalPlayer.Character, "Karakter")
+            -- Oyunun remote klasörü (isimlerden hangisi eşya / güç ile ilgili görülebilsin)
+            local names = {}
+            pcall(function()
+                local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                for _, grp in ipairs(rem and rem:GetChildren() or {}) do
+                    for _, c in ipairs(grp:GetChildren()) do
+                        names[#names + 1] = grp.Name .. "." .. c.Name .. " (" .. c.ClassName .. ")"
+                    end
+                end
+            end)
+            print("[EZRAGOX] --- Sahte Silah teşhisi ---")
+            print("Fake / sahte / decoy adlı nesneler (" .. #found .. "):")
+            for _, l in ipairs(found) do print("  " .. l) end
+            print("ReplicatedStorage.Remotes içindekiler (" .. #names .. "):")
+            for _, n in ipairs(names) do print("  " .. n) end
+
+            -- Sunucunun zaten verdiği (çantada / elde) sahte silah varsa kuşan: o replike olur, herkes görür.
+            local equipped = false
+            local hum = myHum()
+            local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+            if hum and bp then
+                for _, t in ipairs(bp:GetChildren()) do
+                    if t:IsA("Tool") and isFakeName(t.Name) then
+                        pcall(function() hum:EquipTool(t) end)
+                        equipped = true
+                        break
+                    end
+                end
+            end
+            if equipped then
+                notify("Sahte Silah", "Çantandaki sahte silah kuşanıldı (herkes görür).", 3)
+            else
+                notify("Sahte Silah", "Çantanda sahte silah yok. " .. #found .. " ilgili nesne F9 konsoluna yazıldı.", 4)
+            end
+        end)
+    end)()
+
     SFX.keskinFold = SFX.foldBegin(MM2Page, "🔫  Keskin Vuruş Menüsü")
     createButton(MM2Page, "🔫  Keskin Vuruş (Katil / Zombi) — Şimdi", function()
         shootTarget()
@@ -12266,6 +12338,273 @@ end)()
     end
     -- FIRLATMA MODLARI: Tıklayarak / Dokunarak (ortak modül)
     Settings.FlingKit.addModes(MM2Page)
+
+    ---------------------------------------------------------
+    -- 🔥 HOMELANDER LAZERİ
+    -- Atanan tuşa bas = lazer AKTİF, tekrar bas = tamamen KAPALI.
+    -- Aktifken SOL TIK basılı tuttukça gözlerinden kırmızı lazer çıkar (yalnızca SENİN ekranında görünür),
+    -- sol tık bırakılınca lazer ve ses anında biter.
+    -- Ses: baştan çalar; basılı tutmaya devam edersen ses sona gelince 5. saniyeden sonraki kısım tekrar döner.
+    -- Lazer bir oyuncuya LAZER_SURESI sn boyunca değerse o oyuncu haritadan fırlatılır ve ölür.
+    -- Fırlatma sunucuda ancak karakterinin hedefe çarpmasıyla olur; bu yüzden gerçek karakterin
+    -- kısa süre hedefe gidip geri döner. Sen ise kameranla yerinde kalırsın: bulunduğun yerde
+    -- yerel bir kopyan (heykel) durur, kamera ona bakar, iş bitince eski haline dönersin.
+    ---------------------------------------------------------
+    ;(function()
+        local LASER_SES_ID = 131954439917683  -- lazer sesi
+        local SES_DONGU_BASI = 5              -- basılı tutarken ses bitince bu saniyeden (5. sn) itibaren devam eder
+        local SES_SEVIYE = 1                  -- ses yüksekliği (0-10)
+        local LAZER_SURESI = 0.35             -- hedefe bu kadar sn değerse fırlatılır
+        local MENZIL = 400                    -- lazer menzili (stud)
+        local RS_NAME = "EZRAGOX_HomelanderLaser"
+        local armed, lmbDown = false, false
+        local beams, spark = {}, nil
+        local aimPl, aimSince = nil, 0
+        local statue, statueHum = nil, nil
+        local holdView = false
+        local snd, soundOn = nil, false
+
+        ---------------- ses ----------------
+        local function ensureSound()
+            if snd and snd.Parent then return snd end
+            snd = Instance.new("Sound")
+            snd.Name = "EZRAGOX_LaserSound"
+            snd.SoundId = "rbxassetid://" .. tostring(LASER_SES_ID)
+            snd.Volume = SES_SEVIYE
+            snd.Looped = false
+            snd.Parent = game:GetService("SoundService")   -- yerel: yalnızca sen duyarsın
+            bind(snd.Ended, function()
+                -- Sol tık hâlâ basılıysa ses bitince 5. saniyeden sonraki kısım devam eder
+                if soundOn and snd and snd.Parent then
+                    local len = snd.TimeLength
+                    snd.TimePosition = (len > SES_DONGU_BASI + 0.3) and SES_DONGU_BASI or 0
+                    snd:Play()
+                end
+            end)
+            return snd
+        end
+        local function soundStart()
+            local sd = ensureSound()
+            soundOn = true
+            sd.TimePosition = 0
+            sd:Play()
+        end
+        local function soundStop()
+            soundOn = false
+            if snd and snd.Parent then
+                pcall(function() snd:Stop() snd.TimePosition = 0 end)
+            end
+        end
+
+        ---------------- lazer parçaları ----------------
+        local function newBeam()
+            local b = Instance.new("Part")
+            b.Name = "EZRAGOX_LaserBeam"
+            b.Anchored, b.CanCollide, b.CanQuery, b.CanTouch, b.CastShadow = true, false, false, false, false
+            b.Material = Enum.Material.Neon
+            b.Color = Color3.fromRGB(255, 25, 25)
+            b.Size = Vector3.new(0.18, 0.18, 1)
+            b.Transparency = 1
+            b.Parent = workspace
+            return b
+        end
+        local function ensureParts()
+            for i = 1, 2 do
+                if not (beams[i] and beams[i].Parent) then beams[i] = newBeam() end
+            end
+            if not (spark and spark.Parent) then
+                spark = Instance.new("Part")
+                spark.Name = "EZRAGOX_LaserSpark"
+                spark.Shape = Enum.PartType.Ball
+                spark.Size = Vector3.new(1.4, 1.4, 1.4)
+                spark.Anchored, spark.CanCollide, spark.CanQuery, spark.CanTouch, spark.CastShadow = true, false, false, false, false
+                spark.Material = Enum.Material.Neon
+                spark.Color = Color3.fromRGB(255, 120, 40)
+                spark.Transparency = 1
+                spark.Parent = workspace
+                local l = Instance.new("PointLight")
+                l.Color = Color3.fromRGB(255, 40, 40)
+                l.Range = 14
+                l.Brightness = 3
+                l.Parent = spark
+            end
+        end
+        local function hideParts()
+            for _, b in ipairs(beams) do if b and b.Parent then b.Transparency = 1 end end
+            if spark and spark.Parent then spark.Transparency = 1 end
+        end
+        local function destroyParts()
+            for _, b in ipairs(beams) do pcall(function() b:Destroy() end) end
+            beams = {}
+            if spark then pcall(function() spark:Destroy() end) spark = nil end
+        end
+
+        ---------------- fırlatırken kamerayı yerinde tut ----------------
+        local function startStatue()
+            local ch = LocalPlayer.Character
+            if not ch then return end
+            local was = ch.Archivable
+            ch.Archivable = true
+            local ok, g = pcall(function() return ch:Clone() end)
+            ch.Archivable = was
+            if not ok or not g then return end
+            for _, d in ipairs(g:GetDescendants()) do
+                if d:IsA("LuaSourceContainer") or d:IsA("Tool") or d:IsA("ForceField") then
+                    pcall(function() d:Destroy() end)
+                elseif d:IsA("BasePart") then
+                    d.Anchored = true
+                    d.CanCollide = false
+                end
+            end
+            local gh = g:FindFirstChildOfClass("Humanoid")
+            if not gh then pcall(function() g:Destroy() end) return end
+            gh.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            g.Name = "EZRAGOX_LaserStatue"
+            g.Parent = workspace
+            statue, statueHum = g, gh
+        end
+        local function stopStatue()
+            holdView = false
+            pcall(function() RunService:UnbindFromRenderStep(RS_NAME .. "_View") end)
+            if statue then pcall(function() statue:Destroy() end) end
+            statue, statueHum = nil, nil
+            local cam = workspace.CurrentCamera
+            local h = myHum()
+            if cam and h then pcall(function() cam.CameraSubject = h end) end
+        end
+        local function flingFromHere(target)
+            local kit = Settings.FlingKit
+            if not kit or kit.isBusy() then return end
+            startStatue()
+            holdView = statueHum ~= nil
+            if holdView then
+                RunService:BindToRenderStep(RS_NAME .. "_View", Enum.RenderPriority.Camera.Value - 1, function()
+                    local cam = workspace.CurrentCamera
+                    if holdView and cam and statueHum and statueHum.Parent and cam.CameraSubject ~= statueHum then
+                        cam.CameraSubject = statueHum
+                    end
+                end)
+            end
+            kit.fling(target, true)
+            task.spawn(function()
+                local t0 = os.clock()
+                task.wait(0.15)
+                while alive and kit.isBusy() and os.clock() - t0 < 14 do task.wait(0.1) end
+                stopStatue()
+            end)
+        end
+
+        local function aimRay()
+            local cam = workspace.CurrentCamera
+            if not cam then return nil end
+            local loc = UserInputService:GetMouseLocation()
+            local r = cam:ViewportPointToRay(loc.X, loc.Y)
+            local ex = {}
+            if LocalPlayer.Character then ex[#ex + 1] = LocalPlayer.Character end
+            if statue then ex[#ex + 1] = statue end
+            local gh = workspace:FindFirstChild("EZRAGOX_Ghost")
+            if gh then ex[#ex + 1] = gh end
+            for _, b in ipairs(beams) do ex[#ex + 1] = b end
+            if spark then ex[#ex + 1] = spark end
+            local rp = RaycastParams.new()
+            rp.FilterType = Enum.RaycastFilterType.Exclude
+            rp.FilterDescendantsInstances = ex
+            local res = workspace:Raycast(r.Origin, r.Direction * MENZIL, rp)
+            local pos = res and res.Position or (r.Origin + r.Direction * MENZIL)
+            return pos, res
+        end
+
+        local function step()
+            if not alive then
+                pcall(function() RunService:UnbindFromRenderStep(RS_NAME) end)
+                destroyParts()
+                stopStatue()
+                soundStop()
+                if snd then pcall(function() snd:Destroy() end) snd = nil end
+                return
+            end
+            local ch = LocalPlayer.Character
+            local head = ch and ch:FindFirstChild("Head")
+            local hum = myHum()
+            local busy = Settings.FlingKit and Settings.FlingKit.isBusy()
+            if not (armed and lmbDown and head and hum and hum.Health > 0) or busy or SFX.invisOn then
+                hideParts()
+                aimPl, aimSince = nil, 0
+                if soundOn then soundStop() end
+                return
+            end
+            ensureParts()
+            if not soundOn then soundStart() end
+            local hit, res = aimRay()
+            if not hit then hideParts() return end
+            local offs = {Vector3.new(-0.22, 0.12, -0.55), Vector3.new(0.22, 0.12, -0.55)}
+            for i = 1, 2 do
+                local from = (head.CFrame * CFrame.new(offs[i])).Position
+                local len = (hit - from).Magnitude
+                local b = beams[i]
+                b.Size = Vector3.new(0.18, 0.18, math.max(len, 0.1))
+                b.CFrame = CFrame.lookAt(from, hit) * CFrame.new(0, 0, -len / 2)
+                b.Transparency = 0.05
+            end
+            spark.CFrame = CFrame.new(hit)
+            spark.Transparency = 0.15
+
+            -- Lazer bir oyuncuya mı değiyor?
+            local pl
+            local m = res and res.Instance and res.Instance:FindFirstAncestorOfClass("Model")
+            local cand = m and Players:GetPlayerFromCharacter(m)
+            if cand and cand ~= LocalPlayer then
+                local h2 = m:FindFirstChildOfClass("Humanoid")
+                if h2 and h2.Health > 0 then pl = cand end
+            end
+            if pl then
+                if pl ~= aimPl then aimPl, aimSince = pl, os.clock() end
+                if os.clock() - aimSince >= LAZER_SURESI then
+                    aimPl, aimSince = nil, 0
+                    hideParts()
+                    soundStop()
+                    flingFromHere(pl)
+                end
+            else
+                aimPl, aimSince = nil, 0
+            end
+        end
+        RunService:BindToRenderStep(RS_NAME, Enum.RenderPriority.Camera.Value + 1, function()
+            local ok = pcall(step)
+            if not ok then hideParts() end
+        end)
+
+        -- Sol tık: basılı tuttukça ateş, bırakınca lazer + ses anında biter
+        bind(UserInputService.InputBegan, function(input, gpe)
+            if gpe then return end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then lmbDown = true end
+        end)
+        bind(UserInputService.InputEnded, function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                lmbDown = false
+                hideParts()
+                aimPl, aimSince = nil, 0
+                soundStop()
+            end
+        end)
+
+        -- Atanan tuş (kısayol dağıtıcısı çağırır): aktif ↔ tamamen kapalı
+        SFX.laserToggle = function()
+            armed = not armed
+            if not armed then
+                lmbDown = false
+                hideParts()
+                aimPl, aimSince = nil, 0
+                soundStop()
+                notify("Homelander Lazeri", "Tamamen kapatıldı.", 2)
+            else
+                notify("Homelander Lazeri", "AKTİF: sol tık basılı tut = lazer. Kapatmak için tuşa tekrar bas.", 3)
+            end
+        end
+
+        createSection(MM2Page, "🔥  HOMELANDER LAZERİ  (sadece sende görünür)")
+        keyRow("Homelander Lazer Tuşu  (aç/kapa • sol tık basılı = ateş)", "MM2LaserKey")
+    end)()
 
     createSection(MM2Page, "OTOMATİK KAÇIŞ")
     createToggle(MM2Page, "🏃  Katil Yaklaşınca Güvenli Yere Işınlan", false, function(v)
@@ -15364,7 +15703,7 @@ end)()
                     setText(listening.text, mouseLabel(Settings[mouseField]) or cur.Name)
                     listening = nil
                 elseif kc == Settings.ToggleKey or kc == Settings.FlyKey
-                    or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey or kc == Settings.EmoteKey then
+                    or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey or kc == Settings.MM2LaserKey or kc == Settings.EmoteKey then
                     setText(listening.text, "Bu tuş kullanımda")
                 else
                     Settings[listening.key] = kc
@@ -15375,7 +15714,7 @@ end)()
                 end
             else
                 local midTaken = false
-                for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse"}) do
+                for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse", "MM2LaserMouse"}) do
                     if f ~= mouseField and Settings[f] == Enum.UserInputType.MouseButton3 then midTaken = true end
                 end
                 if midTaken then
@@ -15411,6 +15750,8 @@ end)()
             if SFX.sheriffSnipe then SFX.sheriffSnipe() end
         elseif hotkeyMatches(input, Settings.MM2LoopFlingKey, Settings.MM2LoopFlingMouse) then
             if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
+        elseif hotkeyMatches(input, Settings.MM2LaserKey, Settings.MM2LaserMouse) then
+            if SFX.laserToggle then SFX.laserToggle() end
         end
     end)
 
@@ -15426,7 +15767,7 @@ end)()
             -- Orta tık atanmışsa tuşu Roblox'un kendi kamera / shift-lock işleyicilerinden gizle (sink):
             -- oyun orta tıkı "shift-lock" gibi yorumlayıp fareyi kilitlemesin.
             local wantSink = false
-            for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse"}) do
+            for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse", "MM2LaserMouse"}) do
                 if Settings[f] == Enum.UserInputType.MouseButton3 then wantSink = true end
             end
             if wantSink and not midSinkBound then
@@ -15487,6 +15828,8 @@ end)()
                     if SFX.sheriffSnipe then SFX.sheriffSnipe() end
                 elseif Settings.MM2LoopFlingMouse == M3 then
                     if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
+                elseif Settings.MM2LaserMouse == M3 then
+                    if SFX.laserToggle then SFX.laserToggle() end
                 end
             end)
         end)
@@ -19930,7 +20273,7 @@ PX.secHolders.emote = createSection(PremiumPage, "💃  PREMİUM EMOTE  (DANS)")
                     setText(keyText, Settings.EmoteKey.Name)
                 elseif kc == Settings.ToggleKey or kc == Settings.FlyKey
                     or kc == Settings.MM2ShootKey or kc == Settings.MM2GunKey
-                    or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey then
+                    or kc == Settings.MM2KnifeKey or kc == Settings.MM2InvisKey or kc == Settings.MM2FlingKey or kc == Settings.MM2UnlockKey or kc == Settings.MM2WallKey or kc == Settings.MM2AimKey or kc == Settings.MM2SnipeKey or kc == Settings.MM2LoopFlingKey or kc == Settings.MM2LaserKey then
                     setText(keyText, "Bu tuş kullanımda")
                 elseif kc ~= Enum.KeyCode.Unknown then
                     Settings.EmoteKey = kc
