@@ -480,7 +480,8 @@ local EN_TEXT = {
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
     ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
     ["Şaka Bombası"]="Prank Bomb",
-    ["Aktif! Katile isabet edince şaka bombası otomatik kuşanılıp kullanılır."]="Active! When you hit the murderer, the prank bomb is equipped and used automatically.",
+    ["Aktif! Katile isabet edince T ile 7. sıradaki bomba seçilip kullanılır."]="Active! When you hit the murderer, the 7th-slot bomb is picked with T and used.",
+    ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
     ["🔔  Silah Düşünce Üstte Bildirim"]="🔔  On-Screen Notification When the Gun Drops",
@@ -11677,9 +11678,95 @@ end)()
             return best
         end
 
+        -- Sanal tuş basışı (önce VirtualInputManager, yoksa executor'ın keypress'i)
+        local function tapKey(kc, vk, useExecutorKey)
+            if useExecutorKey then
+                if keypress and keyrelease then
+                    pcall(keypress, vk)
+                    task.wait(0.06)
+                    pcall(keyrelease, vk)
+                end
+                return
+            end
+            pcall(function()
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendKeyEvent(true, kc, false, game)
+                task.wait(0.06)
+                vim:SendKeyEvent(false, kc, false, game)
+            end)
+        end
+
+        local function waitForBomb(sec)
+            local t0 = os.clock()
+            local found = findBomb()
+            while alive and not found and os.clock() - t0 < sec do
+                task.wait(0.05)
+                found = findBomb()
+            end
+            return found
+        end
+
+        -- T menüsünde / hotbar'da şaka bombası 7. sırada → 7 tuşu (farklı sıradaysa buradan değiştir)
+        local BOMB_SLOT_KEY, BOMB_SLOT_VK = Enum.KeyCode.Seven, 0x37
+
+        -- Açık menüde adı / yazısı bombaya benzeyen bir düğme varsa ona tıklar
+        local function clickBombGui()
+            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
+            if not pg then return false end
+            for _, d in ipairs(pg:GetDescendants()) do
+                if (d:IsA("TextButton") or d:IsA("ImageButton")) and d.Visible then
+                    local label = d.Name
+                    if d:IsA("TextButton") then label = label .. " " .. d.Text end
+                    if isBombName(label) then
+                        local clicked = false
+                        if getconnections then
+                            for _, ev in ipairs({"MouseButton1Click", "Activated", "MouseButton1Down"}) do
+                                local okC, list = pcall(getconnections, d[ev])
+                                if okC and list then
+                                    for _, c in ipairs(list) do
+                                        pcall(function() c:Fire() end)
+                                        clicked = true
+                                    end
+                                end
+                            end
+                        end
+                        if not clicked and firesignal then
+                            pcall(firesignal, d.MouseButton1Click)
+                            clicked = true
+                        end
+                        if clicked then return true end
+                    end
+                end
+            end
+            return false
+        end
+
         local function useBomb()
             if os.clock() - SFX.bombLast < 1 then return end
             local tool = findBomb()
+            -- MM2'de şaka bombası envantere (alet çantasına) T tuşuyla eklenir: çantada yoksa T'ye bas,
+            -- bombanın gelmesini bekle (önce sanal tuş, olmazsa executor tuşu; her isabette en fazla bir kez dener)
+            if not tool and os.clock() - (SFX.bombTAt or 0) > 3 then
+                local h0 = myHum()
+                if h0 and h0.Health > 0 then
+                    SFX.bombTAt = os.clock()
+                    -- 1) T'ye bas (menü / envanter açılır), sonra 7. sıradaki şaka bombasını seç (7 tuşu)
+                    tapKey(Enum.KeyCode.T, 0x54, false)
+                    task.wait(0.4)
+                    tool = findBomb()
+                    if not tool then
+                        tapKey(BOMB_SLOT_KEY, BOMB_SLOT_VK, false)
+                        tool = waitForBomb(1.2)
+                    end
+                    -- 2) Menüde bomba düğmesi varsa ona tıkla
+                    if not tool and clickBombGui() then tool = waitForBomb(1.0) end
+                    -- 3) Sanal tuş işe yaramadıysa executor tuşuyla 7'ye bas
+                    if not tool then
+                        tapKey(BOMB_SLOT_KEY, BOMB_SLOT_VK, true)
+                        tool = waitForBomb(1.0)
+                    end
+                end
+            end
             if not tool then
                 if os.clock() - SFX.bombWarnAt > 8 then
                     SFX.bombWarnAt = os.clock()
@@ -11691,7 +11778,7 @@ end)()
                             end
                         end
                     end
-                    notify("Şaka Bombası", "Envanterde şaka bombası bulunamadı. Aletlerin: " .. (#names > 0 and table.concat(names, ", ") or "yok"), 6)
+                    notify("Şaka Bombası", "T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: " .. (#names > 0 and table.concat(names, ", ") or "yok"), 6)
                 end
                 return
             end
@@ -11753,7 +11840,7 @@ end)()
         createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
             SFX.bombOn = v
             if v then
-                notify("Şaka Bombası", "Aktif! Katile isabet edince şaka bombası otomatik kuşanılıp kullanılır.", 4)
+                notify("Şaka Bombası", "Aktif! Katile isabet edince T ile 7. sıradaki bomba seçilip kullanılır.", 4)
             end
         end)
     end)()
