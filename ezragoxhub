@@ -7690,6 +7690,39 @@ end)()
         return okS and res and true or false
     end
 
+    -- GÜVENLİ ATIŞ NOKTASI (Oto Farm bitişi): karakter haritada değil, lobide ya da haritanın çok yukarısında dursun.
+    -- Önce lobiye ışınlanır; lobi bulunamazsa / ışınlanma tutmazsa haritanın SFX.skyHeight stud yukarısında havada sabit kalır.
+    SFX.skyHeight = 250
+    function SFX.skyHold(on)
+        if SFX.skyConn then pcall(function() SFX.skyConn:Disconnect() end) SFX.skyConn = nil end
+        if not on then return end
+        local me = myHRP()
+        if not me then return end
+        local target = me.CFrame + Vector3.new(0, tonumber(SFX.skyHeight) or 250, 0)
+        pcall(function()
+            me.CFrame = target
+            me.AssemblyLinearVelocity = Vector3.zero
+            me.AssemblyAngularVelocity = Vector3.zero
+        end)
+        SFX.skyConn = bind(RunService.Heartbeat, function()
+            local m = myHRP()
+            if not alive then return SFX.skyHold(false) end
+            if not m then return end
+            if (m.Position - target.Position).Magnitude > 4 then m.CFrame = target end
+            m.AssemblyLinearVelocity = Vector3.zero
+        end)
+    end
+    function SFX.shootSafeSpot(lobbyFn)
+        if SFX.inLobby() or SFX.skyConn then return end
+        if lobbyFn then
+            pcall(lobbyFn)
+            local t0 = os.clock()
+            while alive and os.clock() - t0 < 0.6 and not SFX.inLobby() do task.wait(0.05) end
+        end
+        if SFX.inLobby() then return end
+        SFX.skyHold(true)   -- lobi yok / tutmadı: haritanın yukarısında sabit bekle
+    end
+
     -- YAPIŞIK VURUŞ (Oto Farm bitişi): hedefin hemen yanına (~2.4 stud) geçer ve ateş edene kadar HER KARE ona
     -- yapışık kalır. Katil koşsa bile mesafe sabit kalır → mermi uçuş süresi ~0, ıskalamak çok zordur.
     -- Ateşten sonra da kısa süre yapışık kalır (sunucu atışı işlesin), sonra eski konuma döner.
@@ -8740,6 +8773,9 @@ end)()
                     end
                 end
 
+                -- Oto Farm bitişi: silahı almadan önce LOBİYE git (alınca "eski yerine" = lobiye döner)
+                if persistent and afterFling and not SFX.inLobby() then pcall(afterFling) end
+
                 -- 2) Düşen silahı al: bekleme YOK, her karede ışınlan + temas (alır almaz eski yerine döner)
                 if not hasGun() then
                     local t0 = os.clock()
@@ -8778,7 +8814,11 @@ end)()
                         if not murderer.Parent or not isAlive(murderer) then break end
                         if not hasGun() then
                             -- Silah elimden düştüyse / alındıysa: yerdeyse tekrar al, yoksa bekle
-                            if gunDropInfo() then pcall(gotoGun, false) end
+                            SFX.skyHold(false)   -- havadaysak silaha giderken sabitlemeyi bırak
+                            if gunDropInfo() then
+                                if afterFling and not SFX.inLobby() then pcall(afterFling) end
+                                pcall(gotoGun, false)
+                            end
                             HB:Wait()
                             continue
                         end
@@ -8787,6 +8827,8 @@ end)()
                             pcall(function() hw:EquipTool(gunP) end)
                             task.wait(0.1)
                         end
+                        -- Her atıştan önce: lobide / haritanın yukarısında olduğumuzdan emin ol (haritada ateş etme)
+                        SFX.shootSafeSpot(afterFling)
                         local part, hum = pickTarget()
                         if not (part and hum and hum.Health > 0) then
                             HB:Wait()
@@ -8832,6 +8874,10 @@ end)()
                 end
             end)
             SFX.aimForce, SFX.snipeFirst = false, false
+            if SFX.skyConn then
+                SFX.skyHold(false)
+                if persistent and afterFling then pcall(afterFling) end   -- havada kaldıysak lobiye dön
+            end
             SFX.snipeBusy = false
         end)
     end
