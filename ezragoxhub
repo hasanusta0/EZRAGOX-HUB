@@ -7649,6 +7649,88 @@ end)()
         return fired
     end
 
+    -- YAPIŞIK VURUŞ (Oto Farm bitişi): hedefin hemen yanına (~2.4 stud) geçer ve ateş edene kadar HER KARE ona
+    -- yapışık kalır. Katil koşsa bile mesafe sabit kalır → mermi uçuş süresi ~0, ıskalamak çok zordur.
+    -- Ateşten sonra da kısa süre yapışık kalır (sunucu atışı işlesin), sonra eski konuma döner.
+    -- nil = yapılamadı (başka yönteme geç); true/false = ateş edildi (sonuç).
+    function SFX.glueShoot(part, hum)
+        if SFX.invisOn then return nil end
+        if SFX.peekBusy and os.clock() - (SFX.peekBusyAt or 0) < 4 then return nil end
+        local gun, ch, hum0, me = findGun(), LocalPlayer.Character, myHum(), myHRP()
+        if not (gun and ch and hum0 and me and part and part.Parent and hum) then return nil end
+        -- Silahı ışınlanmadan ÖNCE ele al
+        local tE = os.clock()
+        while gun.Parent ~= ch and os.clock() - tE < 1.2 and alive do
+            pcall(function() hum0:EquipTool(gun) end)
+            local t1 = os.clock()
+            while gun.Parent ~= ch and os.clock() - t1 < 0.25 do task.wait() end
+        end
+        if gun.Parent ~= ch then return nil end
+        task.wait(0.08)   -- silahın sunucu betiği hazır olsun
+        if (SFX.hitboxW or 0) > 0 and SFX.hbApply then pcall(SFX.hbApply, part.Parent) end
+        local back = me.CFrame
+        local ping = getPingSeconds()
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        op.FilterDescendantsInstances = charsList()
+        pcall(function() op.RespectCanCollide = true end)
+        -- Hedefin arkası → yanları → önü: duvarın içine girmeyen ilk boş nokta
+        local function stick()
+            local m = myHRP()
+            if not (m and part.Parent) then return false end
+            local tp = part.Position
+            local lk = part.CFrame.LookVector
+            local fwd = Vector3.new(lk.X, 0, lk.Z)
+            fwd = fwd.Magnitude > 0.1 and fwd.Unit or Vector3.new(0, 0, 1)
+            local right = Vector3.new(fwd.Z, 0, -fwd.X)
+            local spot
+            for _, off in ipairs({-fwd * 2.4, right * 2.4, -right * 2.4, fwd * 2.4}) do
+                local c = tp + off
+                local okF, parts = pcall(function() return workspace:GetPartBoundsInRadius(c, 1.6, op) end)
+                if okF and #parts == 0 then spot = c break end
+            end
+            spot = spot or (tp - fwd * 2.4)
+            m.CFrame = CFrame.lookAt(spot, tp)
+            m.AssemblyLinearVelocity = Vector3.zero
+            m.AssemblyAngularVelocity = Vector3.zero
+            return true
+        end
+        SFX.peekBusy, SFX.peekBusyAt = true, os.clock()
+        local fired = false
+        pcall(function()
+            local HB = RunService.Heartbeat
+            -- Sunucu yeni konumumu görsün (yapışık kalarak bekle)
+            local t0, pre = os.clock(), 0.1 + ping * 0.6
+            while alive and os.clock() - t0 < pre do
+                if not stick() then return end
+                HB:Wait()
+            end
+            local okS, res = pcall(fireGunAt, function()
+                stick()
+                SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+                return aimPoint(part, hum)
+            end)
+            fired = okS and res and true or false
+            -- Atış işlensin: ölene ya da süre dolana kadar yapışık kal
+            local t2, post = os.clock(), 0.14 + ping
+            while alive and os.clock() - t2 < post do
+                if not (part.Parent and hum.Parent and hum.Health > 0) then break end
+                if not stick() then break end
+                HB:Wait()
+            end
+        end)
+        pcall(function()
+            local m2 = myHRP()
+            if m2 then
+                m2.AssemblyLinearVelocity = Vector3.zero
+                m2.AssemblyAngularVelocity = Vector3.zero
+                m2.CFrame = back
+            end
+        end)
+        SFX.peekBusy = false
+        return fired
+    end
+
     -- Hook gerçek atışı iptal ettiğinde çağrılır
     SFX.swallowShoot = function() shootTarget() end
 
@@ -8667,8 +8749,14 @@ end)()
                         end
                         shots = shots + 1
                         local fired
-                        local okP, resP = pcall(SFX.peekFire, part, hum)
-                        if okP and resP ~= nil then fired = resP end
+                        if (SFX.hitboxW or 0) > 0 and SFX.hbApply then pcall(SFX.hbApply, part.Parent) end
+                        -- 1) Yapışık vuruş: katile yapışıp vur (en sağlam)  2) ışınlanıp vur  3) normal atış
+                        local okG, resG = pcall(SFX.glueShoot, part, hum)
+                        if okG and resG ~= nil then fired = resG end
+                        if fired == nil then
+                            local okP, resP = pcall(SFX.peekFire, part, hum)
+                            if okP and resP ~= nil then fired = resP end
+                        end
                         if not fired then
                             local okF, f2 = pcall(fireGunAt, function()
                                 SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
@@ -13552,7 +13640,7 @@ end)()
                     hrp.AssemblyLinearVelocity = Vector3.zero
                     return true
                 end
-                local step = math.min(dist, speedSt * dt)
+                local step = math.min(dist, speedSt * math.min(dt, 0.05))   -- takılma anında ani sıçrama yok
                 cur = cur + d.Unit * step
                 hrp.CFrame = poseCF(cur, lie)
                 hrp.AssemblyLinearVelocity = Vector3.zero
@@ -13857,7 +13945,7 @@ end)()
             task.spawn(function()
                 while alive and farmEnabled and farmToken == my do
                     pcall(refreshRoles)
-                    task.wait(0.1)
+                    task.wait(0.5)   -- eskiden 0.1 sn: saniyede 10 sunucu çağrısı atılma riskiydi
                 end
             end)
             task.spawn(function()
