@@ -480,6 +480,8 @@ local EN_TEXT = {
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
     ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
     ["Şaka Bombası"]="Prank Bomb",
+    ["🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"]="🎯  Long-Range Shot: Unavoidable Line  (Recommended)",
+    ["↔️  Hat Payı (stud)  •  katil çok sekiyorsa artır"]="↔️  Line Margin (studs)  •  raise if the murderer dodges a lot",
     ["Aktif! Katile isabet edince (katilken şerifi kesince) T ile 7. sıradaki bomba kuşanılır ve bir kere tıklanır."]="Active! When you hit the murderer (or cut the sheriff as murderer), the 7th-slot bomb is picked with T and clicked once.",
     ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
@@ -7484,17 +7486,25 @@ end)()
                         end
                     end
                     if fired == nil then
+                        local lineO
                         local _, fired2 = pcall(fireGunAt, function()
                             local pos
+                            lineO = nil
                             if forceWall or (wallOn and Settings.PremiumActive) then
                                 pos = aimPoint(part, hum)
                             else
-                                local me = myHRP()
-                                pos = (me and SFX.visibleAim(me.Position, part, hum)) or aimPoint(part, hum)
+                                -- Uzaktan vuruş: kaçılamaz hat (katil ileri-geri sekse / zıplasa da gövdesinden geçer)
+                                local o, a = SFX.sweepLine(part, hum)
+                                if o then
+                                    lineO, pos = o, a
+                                else
+                                    local me = myHRP()
+                                    pos = (me and SFX.visibleAim(me.Position, part, hum)) or aimPoint(part, hum)
+                                end
                             end
                             SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
                             return pos
-                        end)
+                        end, function() return lineO end)
                         fired = fired2
                     end
                     if fired and not tracked then
@@ -7662,6 +7672,84 @@ end)()
     -- HAVADAN VURUŞ (ışınlanmadan): mermi silahtan değil, katilin hemen yanındaki bir noktadan çıkar;
     -- araya duvar/engel girmez. Karakter olduğu yerde kalır. Sunucu çıkış noktasını doğruluyorsa işe yaramaz;
     -- nil = yapılamadı, true/false = ateş edildi.
+    -- UZAKTAN KESİN İSABET ("kaçılamaz hat"): ileri-geri sekme / zıplama / ani yön değiştirme.
+    -- Tek bir nokta yerine, katilin ŞU ANKİ konumundan ÖNGÖRÜLEN konumuna uzanan (iki uca da
+    -- SFX.sweepMargin stud pay eklenmiş) bir hat boyunca ateş edilir: mermi çıkış noktası hattın bir ucundan
+    -- (katilin hemen yakınından, silahtan değil), hedef noktası öbür ucundan verilir. Katil bu hattın
+    -- üzerinde nerede olursa olsun (öne / arkaya / yukarı sekse bile) mermi gövdesinden geçer.
+    --  • Hat payı = "Hat Payı" ve "Hitbox Etki Alanı" kaydırıcılarından büyük olan (hitbox tuşlu atışa da işler).
+    --  • Hat ekseni: öngörü yönü; katil duruyorsa son 0.45 sn'de en çok hareket ettiği eksen (ileri-geri);
+    --    o da yoksa benden katile bakan yön.
+    --  • Hat duvara / engele çarpıyorsa uçlar yer değiştirir, olmazsa yan eksen ve dikey eksen denenir.
+    --  • Hiçbiri olmazsa nil döner (eski nokta atışına geçilir). Yakına ışınlanma YOK, karakter olduğu yerde kalır.
+    -- Döner: çıkış noktası, hedef noktası (Vector3, Vector3) ya da nil.
+    SFX.sweepOn = true
+    SFX.sweepMargin = 2.5
+    function SFX.sweepLine(part, hum)
+        if SFX.sweepOn == false then return nil end
+        if not (part and part.Parent and hum) then return nil end
+        local cur = part.Position
+        local pred = aimPoint(part, hum)
+        local lead = pred - cur
+        local axis
+        if lead.Magnitude > 0.8 then
+            axis = lead.Unit
+        else
+            local h = SFX.hist[part]
+            local bestD, a1, a2 = 0, nil, nil
+            if h and #h >= 3 then
+                for i = 1, #h - 1 do
+                    for j = i + 1, #h do
+                        local d = (h[j].p - h[i].p).Magnitude
+                        if d > bestD then bestD, a1, a2 = d, h[i].p, h[j].p end
+                    end
+                end
+            end
+            if bestD > 1.5 then axis = (a2 - a1).Unit end
+        end
+        local me = myHRP()
+        if not axis then
+            local from = me and me.Position or (cur + Vector3.new(1, 0, 0))
+            local flat = Vector3.new(cur.X - from.X, 0, cur.Z - from.Z)
+            axis = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(0, 0, -1)
+        end
+        -- Hat payı: "Hat Payı" ile "Hitbox Etki Alanı" kaydırıcılarından büyük olanı (Hitbox artık tuşlu atışı da genişletir)
+        local m = math.clamp(math.max(tonumber(SFX.sweepMargin) or 2.5, tonumber(SFX.hitboxW) or 0), 1, 10)
+        -- Ana eksen: katilin son 0.45 sn'deki TÜM konumları + öngörülen konum bu hatta sığar (ileri-geri sekme aralığı)
+        local lo, hi = math.min(0, lead:Dot(axis)), math.max(0, lead:Dot(axis))
+        local hs = SFX.hist[part]
+        if hs then
+            for i = 1, #hs do
+                local t = (hs[i].p - cur):Dot(axis)
+                if t < lo then lo = t end
+                if t > hi then hi = t end
+            end
+        end
+        lo, hi = math.max(lo, -12), math.min(hi, 24)
+        local center = (cur + pred) / 2
+        local half = lead.Magnitude / 2 + m
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        op.FilterDescendantsInstances = charsList()
+        pcall(function() op.RespectCanCollide = true end)
+        local function free(p)
+            local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(p, 0.6, op) end)
+            return ok and #parts == 0
+        end
+        local perp = Vector3.new(-axis.Z, 0, axis.X)
+        if perp.Magnitude < 0.1 then perp = Vector3.new(1, 0, 0) end
+        local cands = {{cur + axis * (lo - m), cur + axis * (hi + m)}}
+        for _, d in ipairs({perp.Unit, Vector3.new(0, 1, 0)}) do
+            cands[#cands + 1] = {center - d * half, center + d * half}
+        end
+        for _, c in ipairs(cands) do
+            local A, B = c[1], c[2]
+            if free(A) and hasLineOfSight(A, B) then return A, B end
+            if free(B) and hasLineOfSight(B, A) then return B, A end
+        end
+        return nil
+    end
+
     SFX.airOn = true
     SFX.airOffset = 1.6   -- mermi çıkış noktasının katilden uzaklığı (stud); 0 olmasın (yön sıfırlanır)
     function SFX.airShoot(part, hum)
@@ -7677,11 +7765,17 @@ end)()
         end
         if gun.Parent ~= ch then return nil end
         task.wait(SFX.snipeFirst and (0.25 + getPingSeconds() * 0.5) or 0.08)
+        local lineO
         local okS, res = pcall(fireGunAt, function()
             SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+            -- Kaçılamaz hat: katil ileri-geri sekse / zıplasa da mermi gövdesinden geçer (SFX.sweepLine)
+            local o, a = SFX.sweepLine(part, hum)
+            if o then lineO = o return a end
+            lineO = nil
             return aimPoint(part, hum)
         end, function(target)
-            -- Çıkış noktası: hedefe bana bakan taraftan SFX.airOffset stud yakın, aynı yükseklikte
+            if lineO then return lineO end
+            -- Yedek (hat bulunamazsa): çıkış noktası hedefe bana bakan taraftan SFX.airOffset stud yakın, aynı yükseklikte
             local me = myHRP()
             local from = me and Vector3.new(me.Position.X, target.Y, me.Position.Z) or (target + Vector3.new(1, 0, 0))
             local dv = from - target
@@ -8588,6 +8682,10 @@ end)()
             end
             grabbing = false
         end
+
+        -- GARANTİ BEKÇİ: ne olursa olsun (beklenmedik bir aksilik dahil) en geç 2.2 sn içinde
+        -- karakter kesinlikle başladığı yere geri döner, silahın yanında takılı kalmaz.
+        task.delay(2.2, returnNow)
 
         local function checkInventory()
             if hasGun() then
@@ -10396,6 +10494,15 @@ end)()
     SFX.ownMul = 1
     createSlider(MM2Page, "🏃  Kendi Hareketim Payı (%)  •  koşarken ıskalıyorsan artır", 0, 200, 100, function(v)
         SFX.ownMul = (tonumber(v) or 100) / 100
+    end)
+    local SWEEP_TOGGLE = "🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"
+    SFX.sweepOn = savedOr(SWEEP_TOGGLE, true)
+    createToggle(MM2Page, SWEEP_TOGGLE, SFX.sweepOn, function(v)
+        SFX.sweepOn = v and true or false
+    end)
+    SFX.sweepMargin = 2.5
+    createSlider(MM2Page, "↔️  Hat Payı (stud)  •  katil çok sekiyorsa artır", 1, 6, 2.5, function(v)
+        SFX.sweepMargin = tonumber(v) or 2.5
     end)
     SFX.hitboxW = 3
     createSlider(MM2Page, "📐  Hitbox Etki Alanı (stud)  •  mermi karakteri ıskalasa bile bu kadar yakından geçerse vurur, 0 = kapalı", 0, 12, 3, function(v)
@@ -13788,8 +13895,6 @@ end)()
             local lie = underOn
             setNoclip(true)
             surfacePos = cp
-            if lie then underground = true end
-            pcall(DestroyBody)
 
             local rayP = RaycastParams.new()
             rayP.FilterType = Enum.RaycastFilterType.Exclude
@@ -13803,9 +13908,19 @@ end)()
             end
 
             local gy = groundBelow(cp + Vector3.new(0, 0.5, 0), 60)
+            if lie and not gy then
+                -- Coin'in altında (60 stud içinde) gerçek bir zemin bulunamadı: muhtemelen bir boşluk,
+                -- delik ya da köprü kenarının üstünde. Böyle yerde rastgele bir derinliğe "dalmak" karakteri
+                -- haritanın dışına / boşluğa gönderip oyundan atılmaya yol açıyordu. Zemin bulunamayan
+                -- coin'lerde zeminin altına inmeyi hiç denemeden, normal (yüzeyde) yaklaşılır.
+                lie = false
+            end
+            if lie then underground = true end
+            pcall(DestroyBody)
+
             local goalY
             if lie then
-                goalY = gy and (gy - farmDepth) or (cp.Y - farmDepth - 1.5)
+                goalY = gy - farmDepth
             else
                 goalY = cp.Y + 1.5
             end
