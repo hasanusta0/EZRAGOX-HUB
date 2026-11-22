@@ -5479,8 +5479,9 @@ local FeaturesPage = createTab("Özellikler", "")
             local TCharacter = TargetPlayer.Character
 
             if Character and Humanoid and RootPart and TCharacter then
-                -- Tek seferlik fırlatma: tekrar tekrar denenmez.
-                local MAX_ATTEMPTS = 1
+                -- Ölüm modunda hedef ölmediyse (silah düşmedi / yere indi) en fazla 3 kez tekrar dener.
+                -- Her denemede hedefin GÜNCEL konumuna yeniden çarpar ve yine aşağı (boşluğa) fırlatır.
+                local MAX_ATTEMPTS = killMode and 3 or 1
                 local attempt = 0
                 local targetDied = false
 
@@ -8744,7 +8745,8 @@ end)()
                         flingTarget(sheriff, true)   -- true = ÖLDÜRME MODU (aşağı doğru, direkt ölsün); fling meşgul bayrağını anında kurar
                         local t0 = os.clock()
                         -- fırlatma bitene kadar (fling'in geri dönüşü bitmeden silaha gitme)
-                        while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 9 do HB:Wait() end
+                        -- (hedef ölünce fling kendiliğinden biter; en fazla 3 deneme sürebileceği için 30 sn'ye kadar bekler)
+                        while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 30 do HB:Wait() end
                         -- OTO FARM: fling biter bitmez haritanın altına düşmemek için direkt lobiye ışınlan;
                         -- silah düşünce oradan alınır (alınca eski yerine = lobiye döner), sonra katil vurulur
                         if persistent and afterFling and not lobbied then
