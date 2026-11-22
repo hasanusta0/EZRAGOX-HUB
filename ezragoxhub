@@ -8553,7 +8553,10 @@ end)()
     -- 3) Silahla katile ateş eder (premium varsa duvar arkası / ışınlanmalı vuruş dahil)
     ---------------------------------------------------------
     SFX.snipeBusy = false
-    function SFX.sheriffSnipe()
+    -- persistent == true (yalnızca Oto Farm bitişinden çağrılır): katil ölene kadar SÜREKLİ dener ve
+    -- her denemede katilin yanına ışınlanıp yakından vurur. cancelFn() true dönerse durur.
+    function SFX.sheriffSnipe(persistent, cancelFn)
+        persistent = (persistent == true)
         if SFX.snipeBusy then
             notify("Bekle", "Önceki işlem sürüyor.", 2)
             return
@@ -8630,7 +8633,52 @@ end)()
                         HB:Wait()
                     end
                 end
-                if murderer.Parent and isAlive(murderer) and hasGun() then
+                if persistent then
+                    -- OTO FARM BİTİŞİ: katil ölene kadar dene. Yöntem: katilin hemen yanına ışınlan (3.5 stud),
+                    -- yakından ateş et, geri dön (SFX.peekFire); olmazsa normal atış. Her denemede güncel konum.
+                    local tEnd, shots = os.clock() + 120, 0
+                    while alive and os.clock() < tEnd do
+                        if cancelFn and cancelFn() then break end
+                        local hw = myHum()
+                        if not hw or hw.Health <= 0 then break end
+                        if not murderer.Parent or not isAlive(murderer) then break end
+                        if not hasGun() then
+                            -- Silah elimden düştüyse / alındıysa: yerdeyse tekrar al, yoksa bekle
+                            if gunDropInfo() then pcall(gotoGun, false) end
+                            HB:Wait()
+                            continue
+                        end
+                        local gunP = findGun()
+                        if gunP and gunP.Parent ~= LocalPlayer.Character then
+                            pcall(function() hw:EquipTool(gunP) end)
+                            task.wait(0.1)
+                        end
+                        local part, hum = pickTarget()
+                        if not (part and hum and hum.Health > 0) then
+                            HB:Wait()
+                            continue
+                        end
+                        shots = shots + 1
+                        local fired
+                        local okP, resP = pcall(SFX.peekFire, part, hum)
+                        if okP and resP ~= nil then fired = resP end
+                        if not fired then
+                            local okF, f2 = pcall(fireGunAt, function()
+                                SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+                                return aimPoint(part, hum)
+                            end)
+                            fired = okF and f2
+                        end
+                        if SFX.shot and fired then task.defer(SFX.shot, true) end
+                        -- Sonucu bekle (öldüyse hemen çık), silah bekleme süresi için ~1 sn ara ver
+                        local tW2 = os.clock()
+                        while alive and os.clock() - tW2 < (fired and (0.9 + getPingSeconds()) or 0.3) do
+                            if not murderer.Parent or not isAlive(murderer) then break end
+                            if cancelFn and cancelFn() then break end
+                            task.wait(0.05)
+                        end
+                    end
+                elseif murderer.Parent and isAlive(murderer) and hasGun() then
                     shootTarget(true, true)   -- onceOnly = true: ıskalasa da tekrar vurmaz
                 end
                 local tW = os.clock()
@@ -8641,7 +8689,7 @@ end)()
                 if not murderer.Parent or not isAlive(murderer) then
                     notify("Şerif Avı", "Katil vuruldu!", 3)
                 else
-                    notify("Şerif Avı", "Katil vurulamadı (tek atış denendi).", 3)
+                    notify("Şerif Avı", persistent and "Katil vurulamadı (süre doldu / durduruldu)." or "Katil vurulamadı (tek atış denendi).", 3)
                 end
             end)
             SFX.snipeBusy = false
@@ -13673,7 +13721,8 @@ end)()
                     pcall(notify, "Farm Bitti", "Şerif / kahraman bulunamadı.", 3)
                 end
             else
-                pcall(SFX.sheriffSnipe)
+                -- Farm bitişi: katil ölene kadar sürekli dener (farm kapatılırsa durur)
+                pcall(SFX.sheriffSnipe, true, function() return not farmEnabled end)
             end
         end
 
@@ -23766,7 +23815,7 @@ end)
     -- Ayar: LOGO_GAP = kafanın tepesinden boşluk (stud) • LOGO_SIZE = logonun SABİT boyu (piksel, mesafeden etkilenmez)
     local LOGO_GAP, LOGO_SIZE = 0.45, 80
     local on = true   -- HER ZAMAN AÇIK: kullanıcılar kapatamaz (arayüzde anahtarı yok)
-    local dirty = true
+    local dirty, lastInfo = true, nil
     local jobId = (game.JobId ~= "" and game.JobId) or "studio"
     local dbPath = "ezragox_here/" .. string.gsub(jobId, "[^%w%-]", "")
 
@@ -23861,7 +23910,13 @@ end)
     local function sync()
         -- Kendi kaydını sunucu saatiyle yaz, sonra listeyi oku (yaş = benim saatim - onun saati)
         local put = PX.dbRequest("PUT", dbPath .. "/" .. myKey, {[".sv"] = "timestamp"})
-        if not (put and put.StatusCode == 200) then return end
+        if not (put and put.StatusCode == 200) then
+            if lastInfo ~= "put" then
+                lastInfo = "put"
+                print("[EZRAGOX] Logo: veritabanına yazılamadı (kod: " .. tostring(put and put.StatusCode) .. ")")
+            end
+            return
+        end
         local res = PX.dbRequest("GET", dbPath)
         if not (res and res.StatusCode == 200) or res.Body == nil or res.Body == "null" or res.Body == "" then return end
         local ok, data = pcall(function() return HttpService:JSONDecode(res.Body) end)
@@ -23873,6 +23928,12 @@ end)
             if type(t) == "number" and mine - t <= 90000 then fresh[k] = true end
         end
         users = fresh
+        local n = 0
+        for _ in pairs(fresh) do n = n + 1 end
+        if lastInfo ~= n then
+            lastInfo = n
+            print("[EZRAGOX] Logo: bu sunucuda scripti kullanan oyuncu sayısı (sen dahil): " .. n)
+        end
     end
 
     task.spawn(function()
