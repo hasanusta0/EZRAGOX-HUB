@@ -8555,7 +8555,7 @@ end)()
     SFX.snipeBusy = false
     -- persistent == true (yalnızca Oto Farm bitişinden çağrılır): katil ölene kadar SÜREKLİ dener ve
     -- her denemede katilin yanına ışınlanıp yakından vurur. cancelFn() true dönerse durur.
-    function SFX.sheriffSnipe(persistent, cancelFn)
+    function SFX.sheriffSnipe(persistent, cancelFn, afterFling)
         persistent = (persistent == true)
         if SFX.snipeBusy then
             notify("Bekle", "Önceki işlem sürüyor.", 2)
@@ -8577,6 +8577,7 @@ end)()
                 -- 1) Şerifi fırlat (silah zaten bende veya yerdeyse bu adım atlanır).
                 --    Tüm beklemeler KARE bazlı: silah düştüğü karede bir sonraki adıma geçilir.
                 if not hasGun() and not gunDropInfo() then
+                    local lobbied = false
                     for round = 1, 4 do
                         local sheriff = findRole("Sheriff", true)
                         if not sheriff then break end
@@ -8585,6 +8586,12 @@ end)()
                         local t0 = os.clock()
                         -- fırlatma bitene kadar (fling'in geri dönüşü bitmeden silaha gitme)
                         while alive and Settings.FlingKit.isBusy() and os.clock() - t0 < 9 do HB:Wait() end
+                        -- OTO FARM: fling biter bitmez haritanın altına düşmemek için direkt lobiye ışınlan;
+                        -- silah düşünce oradan alınır (alınca eski yerine = lobiye döner), sonra katil vurulur
+                        if persistent and afterFling and not lobbied then
+                            lobbied = true
+                            pcall(afterFling)
+                        end
                         -- silah düşene kadar kare kare bekle (en fazla 3 sn)
                         local t1 = os.clock()
                         while alive and not gunDropInfo() and not hasGun() and os.clock() - t1 < 2 do HB:Wait() end
@@ -13722,7 +13729,12 @@ end)()
                 end
             else
                 -- Farm bitişi: katil ölene kadar sürekli dener (farm kapatılırsa durur)
-                pcall(SFX.sheriffSnipe, true, function() return not farmEnabled end)
+                pcall(SFX.sheriffSnipe, true, function() return not farmEnabled end, function()
+                    -- Fling sonrası haritanın altına düşmemek için direkt lobiye ışınlan
+                    local ok = false
+                    pcall(function() ok = lobbyTeleport() end)
+                    if not ok then pcall(lobbyTween) end
+                end)
             end
         end
 
