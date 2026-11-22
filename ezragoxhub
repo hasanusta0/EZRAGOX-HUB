@@ -478,6 +478,9 @@ local EN_TEXT = {
     ["⏱️  Tur Süresi Göstergesi (Ekranda Sürüklenebilir)"]="⏱️  Round Timer (Draggable)",
     ["🧟  Zombi Modu (Zombilere de Ateş Et)"]="🧟  Zombie Mode (Shoot Zombies Too)",
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
+    ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
+    ["Şaka Bombası"]="Prank Bomb",
+    ["Aktif! Katile isabet edince şaka bombası otomatik kuşanılıp kullanılır."]="Active! When you hit the murderer, the prank bomb is equipped and used automatically.",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
     ["🔔  Silah Düşünce Üstte Bildirim"]="🔔  On-Screen Notification When the Gun Drops",
@@ -11633,6 +11636,125 @@ end)()
         end)
         createButton(MM2Page, "⏹️  Önizleme Sesini Durdur", function()
             stopPreview()
+        end)
+
+        ---------------------------------------------------------
+        -- ŞAKA BOMBASI: katile isabet edince envanterdeki şaka bombasını otomatik kuşanıp BİR KERE kullanır
+        -- (her isabette bir kez). Bomba aleti, adında bomb / bomba / şaka / prank / joke geçen alet olarak bulunur.
+        ---------------------------------------------------------
+        local BOMB_WORDS = {"bomb", "bomba", "şaka", "saka", "prank", "joke"}
+        local BOMB_TOGGLE = "💣  Katile İsabet Edince Şaka Bombası Kullan"
+        SFX.bombOn = savedOr(BOMB_TOGGLE, false)
+        SFX.bombBusy, SFX.bombLast, SFX.bombWarnAt = false, 0, 0
+
+        local function isBombName(n)
+            n = string.lower(n)
+            for _, w in ipairs(BOMB_WORDS) do
+                if string.find(n, w, 1, true) then return true end
+            end
+            return false
+        end
+
+        local function bombHolders()
+            return {LocalPlayer.Character, LocalPlayer:FindFirstChildOfClass("Backpack")}
+        end
+
+        local function findBomb()
+            local best
+            for _, holder in ipairs(bombHolders()) do
+                if holder then
+                    for _, t in ipairs(holder:GetChildren()) do
+                        if t:IsA("Tool") and isBombName(t.Name) then
+                            best = best or t
+                            local n = string.lower(t.Name)
+                            local prank = string.find(n, "prank", 1, true) or string.find(n, "joke", 1, true)
+                                or string.find(n, "şaka", 1, true) or string.find(n, "saka", 1, true)
+                            if prank and string.find(n, "bomb", 1, true) then return t end   -- tam eşleşme öncelikli
+                        end
+                    end
+                end
+            end
+            return best
+        end
+
+        local function useBomb()
+            if os.clock() - SFX.bombLast < 1 then return end
+            local tool = findBomb()
+            if not tool then
+                if os.clock() - SFX.bombWarnAt > 8 then
+                    SFX.bombWarnAt = os.clock()
+                    local names = {}
+                    for _, holder in ipairs(bombHolders()) do
+                        if holder then
+                            for _, t in ipairs(holder:GetChildren()) do
+                                if t:IsA("Tool") then names[#names + 1] = t.Name end
+                            end
+                        end
+                    end
+                    notify("Şaka Bombası", "Envanterde şaka bombası bulunamadı. Aletlerin: " .. (#names > 0 and table.concat(names, ", ") or "yok"), 6)
+                end
+                return
+            end
+            local hum = myHum()
+            if not hum or hum.Health <= 0 then return end
+            SFX.bombLast = os.clock()
+            local char = LocalPlayer.Character
+            if tool.Parent ~= char then pcall(function() hum:EquipTool(tool) end) end
+            local t0 = os.clock()
+            while alive and tool.Parent ~= char and os.clock() - t0 < 1 do task.wait() end
+            if tool.Parent ~= char then return end
+            task.wait(0.05)
+            pcall(function() tool:Activate() end)   -- kuşanır kuşanmaz kullan / at
+        end
+
+        -- Her atıştan sonra katilin canına bakar: can düştü ya da öldüyse = isabet → bombayı kullan
+        local function bombWatch()
+            if SFX.bombBusy then return end
+            local mp
+            for name, info in pairs(roleCache) do
+                if info.Role == "Murderer" and not info.Dead then
+                    local p = Players:FindFirstChild(name)
+                    if p and p ~= LocalPlayer then mp = p break end
+                end
+            end
+            if not mp then
+                pcall(fetchRoles)
+                for name, info in pairs(roleCache) do
+                    if info.Role == "Murderer" and not info.Dead then
+                        local p = Players:FindFirstChild(name)
+                        if p and p ~= LocalPlayer then mp = p break end
+                    end
+                end
+            end
+            if not mp then return end
+            local ch = mp.Character
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            if not hum or hum.Health <= 0 then return end
+            SFX.bombBusy = true
+            local h0, t0 = hum.Health, os.clock()
+            local hit = false
+            while alive and mp.Parent and os.clock() - t0 < 2.2 + getPingSeconds() do
+                if hum.Health < h0 - 0.01 or hum.Health <= 0 or not hum.Parent or mp.Character ~= ch then
+                    hit = true
+                    break
+                end
+                task.wait(0.03)
+            end
+            if hit then pcall(useBomb) end
+            SFX.bombBusy = false
+        end
+
+        local baseShot = SFX.shot
+        SFX.shot = function(...)
+            if SFX.bombOn and not SFX.bombBusy then task.spawn(bombWatch) end
+            return baseShot(...)
+        end
+
+        createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
+            SFX.bombOn = v
+            if v then
+                notify("Şaka Bombası", "Aktif! Katile isabet edince şaka bombası otomatik kuşanılıp kullanılır.", 4)
+            end
         end)
     end)()
 
