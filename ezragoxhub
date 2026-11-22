@@ -7666,10 +7666,11 @@ end)()
             while gun.Parent ~= ch and os.clock() - t1 < 0.25 do task.wait() end
         end
         if gun.Parent ~= ch then return nil end
-        task.wait(0.08)   -- silahın sunucu betiği hazır olsun
+        local ping = getPingSeconds()
+        -- İlk atışta silahın sunucu betiği hazır olsun diye daha uzun bekle (ilk atış ıskalıyordu)
+        task.wait(SFX.snipeFirst and (0.25 + ping * 0.5) or 0.08)
         if (SFX.hitboxW or 0) > 0 and SFX.hbApply then pcall(SFX.hbApply, part.Parent) end
         local back = me.CFrame
-        local ping = getPingSeconds()
         local op = OverlapParams.new()
         op.FilterType = Enum.RaycastFilterType.Exclude
         op.FilterDescendantsInstances = charsList()
@@ -7700,7 +7701,7 @@ end)()
         pcall(function()
             local HB = RunService.Heartbeat
             -- Sunucu yeni konumumu görsün (yapışık kalarak bekle)
-            local t0, pre = os.clock(), 0.1 + ping * 0.6
+            local t0, pre = os.clock(), 0.1 + ping * 0.6 + (SFX.snipeFirst and (0.15 + ping * 0.3) or 0)
             while alive and os.clock() - t0 < pre do
                 if not stick() then return end
                 HB:Wait()
@@ -7711,6 +7712,7 @@ end)()
                 return aimPoint(part, hum)
             end)
             fired = okS and res and true or false
+            if fired then SFX.snipeFirst = false end
             -- Atış işlensin: ölene ya da süre dolana kadar yapışık kal
             local t2, post = os.clock(), 0.14 + ping
             while alive and os.clock() - t2 < post do
@@ -7741,6 +7743,7 @@ end)()
     SFX.aimOn, SFX.aimAuto = false, false   -- aimOn = aimbot "hazır" (tuşla aç/kapa); asıl devreye girme sağ tık basılıyken
     -- Aimbot yalnızca HAZIR iken VE farenin sağ tuşu basılı tutulurken devreye girer
     function SFX.aimActive()
+        if SFX.aimForce then return true end   -- Oto Farm bitişi / Şerif Avı: vuruş boyunca katile zorla kilitlen
         if not SFX.aimOn then return false end
         local b = Enum.UserInputType.MouseButton2
         if SFX.mouseHeld and SFX.mouseHeld(b) then return true end
@@ -8713,6 +8716,7 @@ end)()
                 end
 
                 -- 3) Katili vur: silah Character'a tam geçer geçmez TEK atış yapılır; bekleme veya tekrar yok.
+                SFX.aimForce, SFX.snipeFirst = true, true   -- vuruş boyunca kamera katile kilitli + ilk atışa ekstra hazırlık
                 local gun2 = findGun()
                 if gun2 then
                     local hum1 = myHum()
@@ -8787,6 +8791,7 @@ end)()
                     notify("Şerif Avı", persistent and "Katil vurulamadı (süre doldu / durduruldu)." or "Katil vurulamadı (tek atış denendi).", 3)
                 end
             end)
+            SFX.aimForce, SFX.snipeFirst = false, false
             SFX.snipeBusy = false
         end)
     end
