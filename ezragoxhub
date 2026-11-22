@@ -7660,7 +7660,7 @@ end)()
 
     -- HAVADAN VURUŞ (ışınlanmadan): mermi silahtan değil, katilin hemen yanındaki bir noktadan çıkar;
     -- araya duvar/engel girmez. Karakter olduğu yerde kalır. Sunucu çıkış noktasını doğruluyorsa işe yaramaz;
-    -- o zaman çağıran taraf glueShoot'a düşer. nil = yapılamadı, true/false = ateş edildi.
+    -- nil = yapılamadı, true/false = ateş edildi.
     SFX.airOn = true
     SFX.airOffset = 1.6   -- mermi çıkış noktasının katilden uzaklığı (stud); 0 olmasın (yön sıfırlanır)
     function SFX.airShoot(part, hum)
@@ -7901,7 +7901,7 @@ end)()
             SFX.peekWhyAt = os.clock()
             pcall(notifyTop, "🧱 Görünmezlik açıkken ışınlanıp vurma çalışmaz, normal atış yapılıyor.", 4)
         end
-        if premiumWall and SFX.peekOn and not SFX.invisOn and (SFX.peekAlways or SFX.peekNeeded(part, hum)) then
+        if premiumWall and SFX.peekOn and not SFX.invisOn and not SFX.aimForce and (SFX.peekAlways or SFX.peekNeeded(part, hum)) then
             return "swallow"
         end
         local handle
@@ -8757,7 +8757,6 @@ end)()
                 end
 
                 -- 3) Katili vur: silah Character'a tam geçer geçmez TEK atış yapılır; bekleme veya tekrar yok.
-                SFX.airFails = 0
                 SFX.aimForce, SFX.snipeFirst = true, true   -- vuruş boyunca kamera katile kilitli + ilk atışa ekstra hazırlık
                 local gun2 = findGun()
                 if gun2 then
@@ -8770,7 +8769,7 @@ end)()
                 end
                 if persistent then
                     -- OTO FARM BİTİŞİ: katil ölene kadar dene. Yöntem: katilin hemen yanına ışınlan (3.5 stud),
-                    -- yakından ateş et, geri dön (SFX.peekFire); olmazsa normal atış. Her denemede güncel konum.
+                    -- uzaktan havadan atış (SFX.airShoot); olmazsa normal atış. Yakına ışınlanma yok. Her denemede güncel konum.
                     local tEnd, shots = os.clock() + 120, 0
                     while alive and os.clock() < tEnd do
                         if cancelFn and cancelFn() then break end
@@ -8796,19 +8795,11 @@ end)()
                         shots = shots + 1
                         local fired
                         if (SFX.hitboxW or 0) > 0 and SFX.hbApply then pcall(SFX.hbApply, part.Parent) end
-                        -- 1) Yapışık vuruş: katile yapışıp vur (en sağlam)  2) ışınlanıp vur  3) normal atış
-                        local usedAir = false
-                        if SFX.airOn ~= false and (SFX.airFails or 0) < 2 then
+                        -- SADECE UZAKTAN: havadan atış katil ölene kadar sürekli denenir.
+                        -- Yapışık vuruş / yakına ışınlanma (glueShoot, peekFire) farm bitişinde ASLA kullanılmaz.
+                        if SFX.airOn ~= false then
                             local okA, resA = pcall(SFX.airShoot, part, hum)
-                            if okA and resA ~= nil then fired = resA usedAir = fired == true end
-                        end
-                        if fired == nil then
-                            local okG, resG = pcall(SFX.glueShoot, part, hum)
-                            if okG and resG ~= nil then fired = resG end
-                        end
-                        if fired == nil then
-                            local okP, resP = pcall(SFX.peekFire, part, hum)
-                            if okP and resP ~= nil then fired = resP end
+                            if okA and resA ~= nil then fired = resA end
                         end
                         if not fired then
                             local okF, f2 = pcall(fireGunAt, function()
@@ -8824,10 +8815,6 @@ end)()
                             if not murderer.Parent or not isAlive(murderer) then break end
                             if cancelFn and cancelFn() then break end
                             task.wait(0.05)
-                        end
-                        -- Havadan atış sonrası katil hâlâ ayaktaysa say; 2 kez olursa sunucu çıkış noktasını kabul etmiyor demektir
-                        if usedAir and murderer.Parent and isAlive(murderer) then
-                            SFX.airFails = (SFX.airFails or 0) + 1
                         end
                     end
                 elseif murderer.Parent and isAlive(murderer) and hasGun() then
