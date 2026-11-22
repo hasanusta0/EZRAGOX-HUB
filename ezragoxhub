@@ -480,7 +480,7 @@ local EN_TEXT = {
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
     ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
     ["Şaka Bombası"]="Prank Bomb",
-    ["Aktif! Katile isabet edince T ile 7. sıradaki bomba seçilip kullanılır."]="Active! When you hit the murderer, the 7th-slot bomb is picked with T and used.",
+    ["Aktif! Katile isabet edince (katilken şerifi kesince) T ile 7. sıradaki bomba kuşanılır ve bir kere tıklanır."]="Active! When you hit the murderer (or cut the sheriff as murderer), the 7th-slot bomb is picked with T and clicked once.",
     ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
@@ -11741,6 +11741,24 @@ end)()
             return false
         end
 
+        -- Kuşanılan bombayı atmak için BİR KERE gerçek fare tıklaması gönderir
+        -- (önce VirtualInputManager, olmazsa executor'ın mouse1click'i). Başarılıysa true döner.
+        SFX.bombClick = function()
+            local sent = false
+            pcall(function()
+                local pos = UserInputService:GetMouseLocation()
+                local vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+                task.wait(0.05)
+                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
+                sent = true
+            end)
+            if not sent and mouse1click then
+                sent = pcall(mouse1click)
+            end
+            return sent
+        end
+
         local function useBomb()
             if os.clock() - SFX.bombLast < 1 then return end
             local tool = findBomb()
@@ -11790,8 +11808,11 @@ end)()
             local t0 = os.clock()
             while alive and tool.Parent ~= char and os.clock() - t0 < 1 do task.wait() end
             if tool.Parent ~= char then return end
-            task.wait(0.05)
-            pcall(function() tool:Activate() end)   -- kuşanır kuşanmaz kullan / at
+            task.wait(0.12)   -- bomba betiği hazır olsun
+            -- Eline aldıktan sonra BİR KERE tıkla → bomba atılır (tool:Activate() atmıyordu)
+            if not SFX.bombClick() then
+                pcall(function() tool:Activate() end)   -- tıklama gönderilemezse yedek yol
+            end
         end
 
         -- Her atıştan sonra katilin canına bakar: can düştü ya da öldüyse = isabet → bombayı kullan
@@ -11831,6 +11852,70 @@ end)()
             SFX.bombBusy = false
         end
 
+        -- KATİLKEN: şerifi bıçakla kesince / bıçak atıp vurunca da aynı akış (bombayı kuşan + bir kere tıkla).
+        -- Şerifin canı düşerse / ölürse ve bu bizim bıçak hareketimizle ilgiliyse (yakında, yeni bıçak
+        -- tıklaması ya da bıçak atma) isabet sayılır.
+        task.spawn(function()
+            local snap, lastRole, knifeSeen = {}, 0, setmetatable({}, {__mode = "k"})
+            while alive do
+                task.wait(0.05)
+                if SFX.bombOn and not SFX.bombBusy and SFX.hasKnife and SFX.hasKnife() then
+                    pcall(function()
+                        local mych = LocalPlayer.Character
+                        local kn = mych and mych:FindFirstChild("Knife")
+                        if kn and kn:IsA("Tool") and not knifeSeen[kn] then
+                            knifeSeen[kn] = true
+                            bind(kn.Activated, function() SFX.lastKnifeAct = os.clock() end)
+                        end
+                        if os.clock() - lastRole > 1 then
+                            lastRole = os.clock()
+                            pcall(fetchRoles)
+                        end
+                        for name, info in pairs(roleCache) do
+                            if info.Role == "Sheriff" then
+                                local p = Players:FindFirstChild(name)
+                                if p and p ~= LocalPlayer then
+                                    local ch2 = p.Character
+                                    local hum = ch2 and ch2:FindFirstChildOfClass("Humanoid")
+                                    local hrp = ch2 and ch2:FindFirstChild("HumanoidRootPart")
+                                    local s0 = snap[p]
+                                    if s0 and ch2 and s0.ch ~= ch2 and hum and hum.Health > 0 then s0 = nil end   -- yeniden doğdu
+                                    local hit = false
+                                    if not (hum and hrp) then
+                                        hit = s0 ~= nil
+                                    elseif hum.Health <= 0 then
+                                        hit = s0 ~= nil
+                                    elseif s0 and hum.Health < s0.hp - 0.01 then
+                                        hit = true
+                                    end
+                                    if hit then
+                                        snap[p] = nil
+                                        local now = os.clock()
+                                        local mine = (s0.near <= 25) or (now - (SFX.lastKnifeAct or 0) < 2.5)
+                                            or (now - (SFX.lastThrow or 0) < 3.5)
+                                        if mine and now - (SFX.bombMurdAt or 0) > 3 then
+                                            SFX.bombMurdAt = now
+                                            SFX.bombBusy = true
+                                            pcall(useBomb)
+                                            SFX.bombBusy = false
+                                            snap = {}
+                                            return
+                                        end
+                                    elseif hum and hrp and hum.Health > 0 then
+                                        local me = myHRP()
+                                        snap[p] = {hp = hum.Health, ch = ch2,
+                                            near = me and (hrp.Position - me.Position).Magnitude or 1e9}
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                else
+                    snap = {}
+                end
+            end
+        end)
+
         local baseShot = SFX.shot
         SFX.shot = function(...)
             if SFX.bombOn and not SFX.bombBusy then task.spawn(bombWatch) end
@@ -11840,7 +11925,7 @@ end)()
         createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
             SFX.bombOn = v
             if v then
-                notify("Şaka Bombası", "Aktif! Katile isabet edince T ile 7. sıradaki bomba seçilip kullanılır.", 4)
+                notify("Şaka Bombası", "Aktif! Katile isabet edince (katilken şerifi kesince) T ile 7. sıradaki bomba kuşanılır ve bir kere tıklanır.", 4)
             end
         end)
     end)()
@@ -23678,6 +23763,8 @@ end)
 ---------------------------------------------------------
 ;(function()
     local LOGO_ID = "rbxassetid://132651627732258"
+    -- Ayar: LOGO_GAP = kafanın tepesinden boşluk (stud) • LOGO_SIZE = logonun SABİT boyu (piksel, mesafeden etkilenmez)
+    local LOGO_GAP, LOGO_SIZE = 0.45, 80
     local on = true   -- HER ZAMAN AÇIK: kullanıcılar kapatamaz (arayüzde anahtarı yok)
     local dirty = true
     local jobId = (game.JobId ~= "" and game.JobId) or "studio"
@@ -23746,10 +23833,13 @@ end)
                         m.Parent = ensureLayer()
                         marks[p] = m
                     end
-                    local pnt, vis = cam:WorldToViewportPoint(head.Position + Vector3.new(0, head.Size.Y * 0.5 + 2.4, 0))
+                    local pnt, vis = cam:WorldToViewportPoint(head.Position + Vector3.new(0, head.Size.Y * 0.5 + LOGO_GAP, 0))
                     local show = vis and pnt.Z > 0   -- uzaklık sınırı yok: logo hep kafanın üstünde kalır
                     m.Visible = show
-                    if show then m.Position = UDim2.fromOffset(pnt.X, pnt.Y) end
+                    if show then
+                        m.Size = UDim2.fromOffset(LOGO_SIZE, LOGO_SIZE)   -- sabit boy
+                        m.Position = UDim2.fromOffset(pnt.X, pnt.Y)
+                    end
                 elseif marks[p] then
                     dropMark(p)
                 end
