@@ -7691,15 +7691,16 @@ end)()
         return okS and res and true or false
     end
 
-    -- GÜVENLİ ATIŞ NOKTASI (Oto Farm bitişi): karakter haritada değil, lobide ya da haritanın çok yukarısında dursun.
-    -- Önce lobiye ışınlanır; lobi bulunamazsa / ışınlanma tutmazsa haritanın SFX.skyHeight stud yukarısında havada sabit kalır.
-    SFX.skyHeight = 250
-    function SFX.skyHold(on)
+    -- ATIŞ NOKTASI (Oto Farm bitişi): lobide karakterler önüne girdiği için karakter HARİTANIN BİRAZ YUKARISINDA (SFX.skyAbove stud)
+    -- havada sabit asılı kalır ve oradan atış yapar. Harita bulunamazsa eski davranış (lobi / bulunduğum yerin yukarısı).
+    SFX.skyHeight = 250   -- harita bulunamazsa: bulunduğum yerin kaç stud yukarısı
+    SFX.skyAbove = 40     -- haritanın EN YÜKSEK noktasının kaç stud yukarısında asılı kalınır
+    function SFX.skyHold(on, atPos)
         if SFX.skyConn then pcall(function() SFX.skyConn:Disconnect() end) SFX.skyConn = nil end
         if not on then return end
         local me = myHRP()
         if not me then return end
-        local target = me.CFrame + Vector3.new(0, tonumber(SFX.skyHeight) or 250, 0)
+        local target = atPos and CFrame.new(atPos) or (me.CFrame + Vector3.new(0, tonumber(SFX.skyHeight) or 250, 0))
         pcall(function()
             me.CFrame = target
             me.AssemblyLinearVelocity = Vector3.zero
@@ -7714,7 +7715,20 @@ end)()
         end)
     end
     function SFX.shootSafeSpot(lobbyFn)
-        if SFX.inLobby() or SFX.skyConn then return end
+        if SFX.skyConn then return end
+        -- Lobide karakterler önüne girdiği için atış HARİTANIN biraz yukarısında asılı kalarak yapılır
+        local m
+        pcall(function() m = findMap() end)
+        if m then
+            local apos
+            pcall(function()
+                local cf, size = m:GetBoundingBox()
+                apos = Vector3.new(cf.Position.X, cf.Position.Y + size.Y / 2 + (tonumber(SFX.skyAbove) or 40), cf.Position.Z)
+            end)
+            if apos then SFX.skyHold(true, apos) return end
+        end
+        -- Harita bulunamadı (eski davranış): lobi, olmazsa bulunduğum yerin yukarısı
+        if SFX.inLobby() then return end
         if lobbyFn then
             pcall(lobbyFn)
             local t0 = os.clock()
