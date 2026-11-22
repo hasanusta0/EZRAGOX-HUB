@@ -5460,6 +5460,9 @@ local FeaturesPage = createTab("Özellikler", "")
     -- Tek fark: YARHM'deki "Oyuncu zaten flung, tekrar fırlatılsın mı?" onay penceresi burada
     -- yok (bu scriptte YARHM'deki gibi bir dialog sistemi yok), o yüzden doğrudan devam eder.
     local function flingTarget(plr, killMode)
+        -- killMode == true  → FARM / otomatik akış: eskisi gibi (en fazla 3 denemeye kadar tekrar eder)
+        -- killMode ~= true  → SENİN ELLE attığın fling (buton / tuş / çift tık / uzaktan vuruş): SADECE 1 KEZ dener
+        local retryMode = (killMode == true)
         killMode = true   -- TÜM fırlatmalar yukarı değil AŞAĞI (boşluğa) fırlatır: hedef direkt ölsün
         if mm2FlingBusy then
             notify("Bekle", "Önceki fırlatma hâlâ sürüyor.", 2)
@@ -5471,6 +5474,31 @@ local FeaturesPage = createTab("Özellikler", "")
         end
 
         mm2FlingBusy = true
+        if not retryMode then
+            -- Güvenlik ağı (sadece elle atılan fling): bir şey ters giderse en geç 25 sn sonra
+            -- meşgul bayrağını / düşme yüksekliğini / kamerayı / hızı kesin olarak normale döndürür.
+            local fpdh0 = workspace.FallenPartsDestroyHeight
+            if fpdh0 ~= fpdh0 then fpdh0 = -500 end
+            task.spawn(function()
+                local w0 = os.clock()
+                while mm2FlingBusy and os.clock() - w0 < 25 do task.wait(0.25) end
+                if mm2FlingBusy then
+                    mm2FlingBusy = false
+                    pcall(function() workspace.FallenPartsDestroyHeight = fpdh0 end)
+                    pcall(function()
+                        local ch = LocalPlayer.Character
+                        local hm = ch and ch:FindFirstChildOfClass("Humanoid")
+                        if hm then workspace.CurrentCamera.CameraSubject = hm end
+                        local rp = ch and ch:FindFirstChild("HumanoidRootPart")
+                        if rp then
+                            local bv = rp:FindFirstChild("EZRAGOX_FlingVel")
+                            if bv then bv:Destroy() end
+                            rp.AssemblyLinearVelocity, rp.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
+                        end
+                    end)
+                end
+            end)
+        end
         task.spawn(function()
             local Character = LocalPlayer.Character
             local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
@@ -5483,7 +5511,7 @@ local FeaturesPage = createTab("Özellikler", "")
             if Character and Humanoid and RootPart and TCharacter then
                 -- Ölüm modunda hedef ölmediyse (silah düşmedi / yere indi) en fazla 3 kez tekrar dener.
                 -- Her denemede hedefin GÜNCEL konumuna yeniden çarpar ve yine aşağı (boşluğa) fırlatır.
-                local MAX_ATTEMPTS = killMode and 3 or 1
+                local MAX_ATTEMPTS = retryMode and 3 or 1   -- elle atılan fling: 1 deneme • farm: 3 deneme
                 local attempt = 0
                 local targetDied = false
 
@@ -5515,7 +5543,7 @@ local FeaturesPage = createTab("Özellikler", "")
                         break
                     end
 
-                    if RootPart.Velocity.Magnitude < 50 then
+                    if RootPart.Velocity.Magnitude < 50 or (not retryMode and not flingOldPos) then
                         flingOldPos = RootPart.CFrame
                     end
 
@@ -5668,6 +5696,7 @@ local FeaturesPage = createTab("Özellikler", "")
                     end
                     workspace.CurrentCamera.CameraSubject = Humanoid
 
+                    local backT = os.clock()
                     repeat
                         RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
                         Character:SetPrimaryPartCFrame(flingOldPos * CFrame.new(0, .5, 0))
@@ -5679,6 +5708,7 @@ local FeaturesPage = createTab("Özellikler", "")
                         end)
                         task.wait()
                     until (RootPart.Position - flingOldPos.p).Magnitude < 25
+                        or (not retryMode and (os.clock() - backT > 3 or not RootPart.Parent or Humanoid.Health <= 0))   -- elle atılan fling: ölürsen / 3 sn geçerse döngüde takılma
                     workspace.FallenPartsDestroyHeight = oldFallenHeight
                 until targetDied or attempt >= MAX_ATTEMPTS
 
@@ -13341,7 +13371,7 @@ end)()
             if LocalPlayer.Character then hiddenModels[#hiddenModels + 1] = LocalPlayer.Character end
             if target.Character then hiddenModels[#hiddenModels + 1] = target.Character end
             hidingMe = true
-            kit.fling(target, true)
+            kit.fling(target, false)   -- elle tetiklenen vuruş: tek deneme
             task.spawn(function()
                 local t0 = os.clock()
                 task.wait(0.15)
