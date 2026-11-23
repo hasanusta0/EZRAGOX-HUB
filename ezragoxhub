@@ -7089,6 +7089,25 @@ end)()
         local handle = gun:FindFirstChild("Handle")
         local origin = (handle and handle:IsA("BasePart") and handle.Position)
             or (myHRP() and myHRP().Position) or pos
+        -- Görsel iz için gerçek namlu ucunu bul; sunucuya giden origin'den bağımsız tut.
+        local visualOrigin = origin
+        pcall(function()
+            for _, d in ipairs(gun:GetDescendants()) do
+                local n = string.lower(d.Name)
+                if n == "muzzle" or n == "muzzleattachment" or n == "barrelattachment" then
+                    if d:IsA("Attachment") then
+                        visualOrigin = d.WorldPosition
+                        break
+                    elseif d:IsA("BasePart") then
+                        visualOrigin = d.Position
+                        break
+                    end
+                end
+            end
+            if visualOrigin == origin and handle and handle:IsA("BasePart") then
+                visualOrigin = (handle.CFrame * CFrame.new(0, 0, -handle.Size.Z * 0.5)).Position
+            end
+        end)
         -- HAVADAN VURUŞ: çıkış noktası dışarıdan verildiyse (fonksiyon ya da Vector3) mermi oradan çıkar
         if originOv ~= nil then
             if type(originOv) == "function" then
@@ -7109,7 +7128,10 @@ end)()
         if SFX.inBurst then
             if SFX.burstFx then fxOk = false else SFX.burstFx = true end
         end
-        if fxOk and Settings.PXShot then pcall(Settings.PXShot, origin, pos) end -- mermi izi / efekt tetikleyici
+        if fxOk and Settings.PXShot then
+            -- Mermi izi daima silahın gerçek namlu ucundan hedefe doğru çizilir.
+            pcall(Settings.PXShot, visualOrigin, pos)
+        end
         local errs = {}
         -- 1) Öğrenilmiş gerçek çağrı varsa onu kullan (silahla bir kez normal ateş edince kaydedilir)
         local remoteByKey = {ShootGun = shootRemote, CreateBeam = beamRemote, Shoot = directRemote}
@@ -7246,6 +7268,7 @@ end)()
     end
 
     -- Nişan noktası: hedefin MERMİ ULAŞTIĞINDA bulunacağı yer.
+    -- Takip tepkisi: son 0.09 sn ağırlıklı; yön değişiminde eski hız tahmini daha hızlı bastırılır.
     --  • Hız, hedefin son ~0.2 sn'lik gerçek konum geçmişinden ölçülür (uzak oyuncularda
     --    AssemblyLinearVelocity titrek / gecikmeli olabildiği için bununla harmanlanır).
     --  • Öngörü süresi = ping + küçük arayüz/interpolasyon payı; "Nişan Öngörüsü" kaydırıcısıyla ayarlanır.
@@ -7309,28 +7332,43 @@ end)()
         local grounded = hum.FloorMaterial ~= Enum.Material.Air
         local va = part.AssemblyLinearVelocity
         local h = SFX.hist[part]
-        local vr, vo = velBetween(h, 0, 0.12), velBetween(h, 0.12, 0.32)
-        local v
-        if vr and vo then v = vr * 0.6 + vo * 0.4
-        elseif vr then v = vr
-        else v = va end
-        if vr and va.Magnitude > 1 then v = v * 0.8 + va * 0.2 end
-        local flat = Vector3.new(v.X, 0, v.Z)
+        -- En yeni örnekleri önceliklendir: hedef aniden sağa/sola kırdığında eski yön
+        -- tahmini yeni atışı sürüklemesin. vr = son 0.09 sn, vo = önceki pencere.
+        local vr, vo = velBetween(h, 0, 0.09), velBetween(h, 0.09, 0.22)
+        local v = vr or va
+        local turning = false
         local damp = 1
         if vr and vo then
             local fr, fo = Vector3.new(vr.X, 0, vr.Z), Vector3.new(vo.X, 0, vo.Z)
             if fr.Magnitude > 3 and fo.Magnitude > 3 then
                 local d = fr.Unit:Dot(fo.Unit)
-                if d < 0.5 then damp = 0.4 + 0.6 * math.clamp((d + 1) / 1.5, 0, 1) end
+                turning = d < 0.35
+                if turning then
+                    -- Yön değişiminde eski hızın etkisini kes; güncel hız ve fiziksel hız önde.
+                    v = vr * 0.85 + va * 0.15
+                    damp = 0.55
+                else
+                    v = vr * 0.65 + vo * 0.20 + va * 0.15
+                end
+            else
+                v = vr * 0.8 + va * 0.2
             end
-            if fr.Magnitude < fo.Magnitude * 0.5 then flat = fr end -- yavaşlıyor / duruyor
+            if fr.Magnitude < fo.Magnitude * 0.65 then
+                v = vr * 0.85 + va * 0.15 -- yavaşlama / durma: eski hıza göre öne nişan alma
+            end
+        elseif vr then
+            v = vr * 0.8 + va * 0.2
         end
+        local flat = Vector3.new(v.X, 0, v.Z)
         if flat.Magnitude < 1.2 then flat = Vector3.zero end
         local me = myHRP()
         local dist = me and (part.Position - me.Position).Magnitude or 0
-        local t = (getPingSeconds() + 0.09 + dist / 900) * (SFX.leadMul or 1) * (SFX.autoMul or 1)
+        local t = (getPingSeconds() + 0.07 + dist / 1100) * (SFX.leadMul or 1) * (SFX.autoMul or 1)
+        -- Ani yön değişiminde uzun öngörü yerine güncel konuma yakın, kısa tahmin kullan.
+        if turning and SFX.smartOn then t = t * 0.55 end
         local lead = flat * t * damp
-        if lead.Magnitude > 24 then lead = lead.Unit * 24 end
+        local maxLead = turning and 9 or 16
+        if lead.Magnitude > maxLead then lead = lead.Unit * maxLead end
         SFX.lastFlat, SFX.lastLead = flat, lead.Magnitude
         local dy = 0
         if not grounded then
@@ -7390,7 +7428,7 @@ end)()
     -- Hedef o an ani yön değiştiriyor mu (sağa-sola kaçıyor)? Böyle anda atış tutma ihtimali düşer.
     function SFX.isErratic(part)
         local h = SFX.hist[part]
-        local vr, vo = velBetween(h, 0, 0.12), velBetween(h, 0.12, 0.32)
+        local vr, vo = velBetween(h, 0, 0.09), velBetween(h, 0.09, 0.22)
         if not (vr and vo) then return false end
         local fr, fo = Vector3.new(vr.X, 0, vr.Z), Vector3.new(vo.X, 0, vo.Z)
         if fr.Magnitude < 4 or fo.Magnitude < 4 then return false end
@@ -7494,13 +7532,8 @@ end)()
             pcall(function()
                 local fails = 0
                 local tracked = false
-                -- Akıllı zamanlama: hedef o an sağa-sola kaçıyorsa en fazla 0.25 sn bekleyip düz gittiği anı yakala
-                if SFX.smartOn then
-                    local w0 = os.clock()
-                    while alive and my == shotToken and os.clock() - w0 < 0.25 and SFX.isErratic(part) do
-                        task.wait(0.03)
-                    end
-                end
+                -- Bekleyerek hedefin yeni yönünü kaçırma: atış hemen yapılır; fireGunAt
+                -- nişan noktasını remote gönderiminden hemen önce yeniden hesaplar.
                 for _ = 1, 6 do
                     if not alive or my ~= shotToken then return end
                     if not (part.Parent and hum.Parent and hum.Health > 0) then return end -- hedef öldü
@@ -7797,12 +7830,18 @@ end)()
         task.wait(SFX.snipeFirst and (0.25 + getPingSeconds() * 0.5) or 0.08)
         local lineO
         local okS, res = pcall(fireGunAt, function()
-            SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
             -- Kaçılamaz hat: katil ileri-geri sekse / zıplasa da mermi gövdesinden geçer (SFX.sweepLine)
             local o, a = SFX.sweepLine(part, hum)
-            if o then lineO = o return a end
-            lineO = nil
-            return aimPoint(part, hum)
+            local target
+            if o then
+                lineO, target = o, a
+            else
+                lineO = nil
+                target = aimPoint(part, hum)
+            end
+            -- Kalibrasyon kaydı, bu atış için hesaplanan GÜNCEL hız/öngörüye ait olmalı.
+            SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+            return target
         end, function(target)
             if lineO then return lineO end
             -- Yedek (hat bulunamazsa): çıkış noktası hedefe bana bakan taraftan SFX.airOffset stud yakın, aynı yükseklikte
@@ -8017,11 +8056,32 @@ end)()
     -- DUVAR ARKASI VURUŞ TUŞU: tuşa (veya atanmış fare orta tuşuna) basınca, silah elindeyse (çantadaysa otomatik ele alınır)
     -- görüş hattına bakmadan katile direkt ateş eder; "Duvar Arkası Vuruş" anahtarının açık olması gerekmez.
     function SFX.wallShoot()
-        if not Settings.PremiumActive then
-            notify("Premium Gerekli", "Duvar arkası vuruş sadece premium kullanıcılar içindir.", 3)
+        if os.clock() - (SFX.lastRemoteShot or 0) < 0.35 then return end
+        local gun = findGun()
+        local ch = LocalPlayer.Character
+        if not (gun and ch) then
+            notify("Şerif olmalısın!", "Uzaktan vuruş için silah sende olmalı.", 3)
             return
         end
-        shootTarget(true)
+        local hum0 = myHum()
+        if hum0 and gun.Parent ~= ch then
+            pcall(function() hum0:EquipTool(gun) end)
+        end
+        local part, hum = pickTarget()
+        if not (part and hum and hum.Health > 0) then
+            shootWarn("Hayatta olan katil bulunamadı.")
+            return
+        end
+        SFX.lastRemoteShot = os.clock()
+        task.spawn(function()
+            local ok, fired = pcall(SFX.airShoot, part, hum)
+            if ok and fired then
+                if SFX.shot then task.defer(SFX.shot, true) end
+                SFX.track(part, hum)
+            else
+                notify("Uzaktan Vuruş", "Atış gönderilemedi; sunucu atışı reddetmiş olabilir.", 3)
+            end
+        end)
     end
 
     ---------------------------------------------------------
@@ -8496,6 +8556,26 @@ end)()
     Settings.MM2FlingPlayer = function(plr)
         if Settings.SetFlingTarget then Settings.SetFlingTarget(plr) end
         flingTarget(plr)
+
+        -- Fling tamamlandıktan sonra silahın yere düşmesi gecikebilir.
+        -- Workspace.DescendantAdded olayını kaçırsa bile otomatik alma bir kez daha tetiklenir.
+        if autoGunOn then
+            task.spawn(function()
+                local started = os.clock()
+                while alive and Settings.FlingKit and Settings.FlingKit.isBusy
+                    and Settings.FlingKit.isBusy() and os.clock() - started < 8 do
+                    task.wait(0.1)
+                end
+                if not alive or not autoGunOn then return end
+
+                -- Fırlatılan oyuncunun silahı düşürmesi için kısa bir süre tanı.
+                task.wait(1)
+                -- autoGunNow kendi içinde düşen silahın oluşmasını kısa süre tarar.
+                if alive and autoGunOn and SFX.autoGunNow then
+                    task.spawn(SFX.autoGunNow)
+                end
+            end)
+        end
     end
 
     ---------------------------------------------------------
@@ -8552,8 +8632,8 @@ end)()
         return bp ~= nil and bp:FindFirstChild("Gun") ~= nil
     end
 
-    -- Silaha ışınlanır; silah envantere girer girmez veya karakter
-    -- silaha temas eder etmez başlangıç konumuna döner.
+    -- Karakteri silaha ışınlamadan, mevcut konumdan düşen silaha temas/alma dener.
+    -- Gerçek envanter alımı sunucu tarafından onaylanır; istemci bunu zorlayamaz.
     local grabbing = false
     local lastGunDiag = 0
     local function gunDiag(msg)
@@ -8685,7 +8765,6 @@ end)()
 
         grabbing = true
         SFX.grabAt = os.clock()
-        local origin = hrp.CFrame
         local got, touched = hasGun(), false
         local finished = false
         local connections = {}
@@ -8702,19 +8781,12 @@ end)()
             finished = true
             disconnectAll()
 
-            local h = myHRP()
-            if h then
-                pcall(function()
-                    h.CFrame = origin
-                    h.AssemblyLinearVelocity = Vector3.zero
-                    h.AssemblyAngularVelocity = Vector3.zero
-                end)
-            end
+            -- Bu işlem boyunca karakter hareket ettirilmez; başlangıç konumuna
+            -- geri ışınlama da yapılmaz.
             grabbing = false
         end
 
-        -- GARANTİ BEKÇİ: ne olursa olsun (beklenmedik bir aksilik dahil) en geç 2.2 sn içinde
-        -- karakter kesinlikle başladığı yere geri döner, silahın yanında takılı kalmaz.
+        -- GARANTİ BEKÇİ: bağlantıları en geç 2.2 sn içinde kapatır; karakter yerinde kalır.
         task.delay(2.2, returnNow)
 
         local function checkInventory()
@@ -8779,8 +8851,8 @@ end)()
                 break
             end
 
-            tpTo(currentPart.Position + Vector3.new(0, 1.5, 0))
-
+            -- ÖNEMLİ: tpTo kaldırıldı. Oyuncu silaha gitmez; yalnızca bulunduğu
+            -- konumdaki karakter parçaları üzerinden temas isteği denenir.
             pcall(function()
                 if firetouchinterest then
                     local ch = LocalPlayer.Character
@@ -8989,8 +9061,9 @@ end)()
                         end
                         if not fired then
                             local okF, f2 = pcall(fireGunAt, function()
+                                local target = aimPoint(part, hum)
                                 SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
-                                return aimPoint(part, hum)
+                                return target
                             end)
                             fired = okF and f2
                         end
@@ -9028,7 +9101,7 @@ end)()
 
     ---------------------------------------------------------
     -- SİLAH TUŞU (tek tuş):
-    --  • Silah yerdeyse   → ışınlanıp alır, eski yerine döner
+    --  • Silah yerdeyse   → oyuncuyu hareket ettirmeden uzaktan temas/alma dener
     --  • Silah birindeyse → o kişiye fling atar; silah düşünce alır
     ---------------------------------------------------------
     SFX.gunKeyBusy = false
@@ -9099,7 +9172,7 @@ end)()
                     end
                 end
 
-                -- 3) Düşen silahı al (her karede ışınlan + temas; alır almaz eski yerine döner)
+                -- 3) Düşen silahı oyuncuyu ışınlamadan temas/alma yoluyla dene
                 if not hasGun() then
                     local t0 = os.clock()
                     while alive and not hasGun() and os.clock() - t0 < 20 do
@@ -10517,9 +10590,9 @@ end)()
     createToggle(MM2Page, LEFTCLICK_TOGGLE, SFX.shootLeftOn, function(v)
         SFX.shootLeftOn = v
     end)
-    SFX.leadMul = 1.25
-    createSlider(MM2Page, "🎯  Nişan Öngörüsü (%)  •  mermi arkada kalırsa artır", 0, 200, 125, function(v)
-        SFX.leadMul = (tonumber(v) or 125) / 100
+    SFX.leadMul = 1.10
+    createSlider(MM2Page, "🎯  Nişan Öngörüsü (%)  •  mermi arkada kalırsa artır", 0, 200, 110, function(v)
+        SFX.leadMul = (tonumber(v) or 110) / 100
     end)
     SFX.ownMul = 1
     createSlider(MM2Page, "🏃  Kendi Hareketim Payı (%)  •  koşarken ıskalıyorsan artır", 0, 200, 100, function(v)
@@ -10544,8 +10617,8 @@ end)()
         SFX.knifeHitW = tonumber(v) or 4
         if SFX.knifeHitW <= 0 and (SFX.hitboxW or 0) <= 0 and SFX.hbRestore then pcall(SFX.hbRestore) end
     end)
-    local SMART_TOGGLE = "🧠  Akıllı Zamanlama (kaçan hedefte kısa bekle)"
-    SFX.smartOn = savedOr(SMART_TOGGLE, true)
+    local SMART_TOGGLE = "🧠  Ani Yön Değişiminde Hızlı Takip"
+    SFX.smartOn = savedOr("🧠  Akıllı Zamanlama (kaçan hedefte kısa bekle)", true)
     createToggle(MM2Page, SMART_TOGGLE, SFX.smartOn, function(v)
         SFX.smartOn = v
     end)
