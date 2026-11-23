@@ -482,7 +482,7 @@ local EN_TEXT = {
     ["Şaka Bombası"]="Prank Bomb",
     ["🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"]="🎯  Long-Range Shot: Unavoidable Line  (Recommended)",
     ["↔️  Hat Payı (stud)  •  katil çok sekiyorsa artır"]="↔️  Line Margin (studs)  •  raise if the murderer dodges a lot",
-    ["Aktif! Katile isabet edince (katilken şerifi kesince) T ile 7. sıradaki bomba kuşanılır ve bir kere tıklanır."]="Active! When you hit the murderer (or cut the sheriff as murderer), the 7th-slot bomb is picked with T and clicked once.",
+    ["Aktif! Katile isabet edince (katilken şerifi kesince) T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır."]="Active! When you hit the murderer (or cut the sheriff as murderer), T is pressed, the prank bomb is found automatically in whatever slot it is, equipped and clicked once.",
     ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
@@ -12109,6 +12109,7 @@ end)()
         SFX.bombBusy, SFX.bombLast, SFX.bombWarnAt = false, 0, 0
 
         local function isBombName(n)
+            if SFX.bombName and n == SFX.bombName then return true end   -- T'den sonra öğrenilen bomba adı
             n = string.lower(n)
             for _, w in ipairs(BOMB_WORDS) do
                 if string.find(n, w, 1, true) then return true end
@@ -12166,8 +12167,98 @@ end)()
             return found
         end
 
-        -- T menüsünde / hotbar'da şaka bombası 7. sırada → 7 tuşu (farklı sıradaysa buradan değiştir)
-        local BOMB_SLOT_KEY, BOMB_SLOT_VK = Enum.KeyCode.Seven, 0x37
+        -- Şaka bombasının sırası (hotbar numarası) sabit değil, bazen değişiyor.
+        -- Bu yüzden T'den sonra bomba şu sırayla bulunur:
+        --   1) T'den önceki alet listesi kaydedilir, T'den sonra listeye YENİ eklenen alet = şaka bombası
+        --   2) Bulunamazsa 1-9 ve 0 tuşları sırayla denenir (önce son bulunan sıra, sonra 7); elde bomba çıkınca durur
+        -- Bulunan sıra ve alet adı hatırlanır (SFX.bombSlot / SFX.bombName), sonraki seferde ilk o denenir.
+        local BOMB_SLOTS = {
+            {Enum.KeyCode.One, 0x31}, {Enum.KeyCode.Two, 0x32}, {Enum.KeyCode.Three, 0x33},
+            {Enum.KeyCode.Four, 0x34}, {Enum.KeyCode.Five, 0x35}, {Enum.KeyCode.Six, 0x36},
+            {Enum.KeyCode.Seven, 0x37}, {Enum.KeyCode.Eight, 0x38}, {Enum.KeyCode.Nine, 0x39},
+            {Enum.KeyCode.Zero, 0x30},
+        }
+
+        -- Şu an karakterde / çantada olan tüm aletlerin kaydı
+        local function toolSnapshot()
+            local snap = {}
+            for _, holder in ipairs(bombHolders()) do
+                if holder then
+                    for _, t in ipairs(holder:GetChildren()) do
+                        if t:IsA("Tool") then snap[t] = true end
+                    end
+                end
+            end
+            return snap
+        end
+
+        -- T'den sonra eklenen yeni alet (adı ne olursa olsun) ya da adı bombaya benzeyen alet
+        local function findNewBomb(before)
+            local b = findBomb()
+            if b then return b end
+            for _, holder in ipairs(bombHolders()) do
+                if holder then
+                    for _, t in ipairs(holder:GetChildren()) do
+                        if t:IsA("Tool") and not before[t] then
+                            SFX.bombName = t.Name   -- bir sonraki sefer için adını hatırla
+                            return t
+                        end
+                    end
+                end
+            end
+            return nil
+        end
+
+        local function waitForNewBomb(before, sec)
+            local t0 = os.clock()
+            local found = findNewBomb(before)
+            while alive and not found and os.clock() - t0 < sec do
+                task.wait(0.05)
+                found = findNewBomb(before)
+            end
+            return found
+        end
+
+        -- Şu an ELDE tutulan alet bomba mı? (adı bombaya benziyor ya da T'den sonra gelen yeni alet)
+        local function equippedBomb(before)
+            local char = LocalPlayer.Character
+            if not char then return nil end
+            for _, t in ipairs(char:GetChildren()) do
+                if t:IsA("Tool") and (isBombName(t.Name) or not before[t]) then return t end
+            end
+            return nil
+        end
+
+        -- Hotbar tuşlarını sırayla dener; bomba eline geçtiği an durur
+        local function scanSlots(before, useExecutorKey)
+            local order, seen = {}, {}
+            local function add(i)
+                if i and not seen[i] then seen[i] = true; order[#order + 1] = i end
+            end
+            add(SFX.bombSlot)   -- en son bombanın bulunduğu sıra
+            add(7)              -- eski varsayılan
+            for i = 1, #BOMB_SLOTS do add(i) end
+            for _, i in ipairs(order) do
+                if not alive then return nil end
+                local slot = BOMB_SLOTS[i]
+                tapKey(slot[1], slot[2], useExecutorKey)
+                local t0, found = os.clock(), nil
+                while alive and os.clock() - t0 < 0.3 do
+                    found = equippedBomb(before)
+                    if found then break end
+                    task.wait(0.05)
+                end
+                if found then
+                    SFX.bombSlot = i
+                    SFX.bombName = found.Name
+                    return found
+                end
+            end
+            -- hiçbir sırada bomba çıkmadı: yanlışlıkla eline alınan aleti geri bırak
+            local hum = myHum()
+            if hum then pcall(function() hum:UnequipTools() end) end
+            return nil
+        end
 
         -- Açık menüde adı / yazısı bombaya benzeyen bir düğme varsa ona tıklar
         local function clickBombGui()
@@ -12228,21 +12319,16 @@ end)()
                 local h0 = myHum()
                 if h0 and h0.Health > 0 then
                     SFX.bombTAt = os.clock()
-                    -- 1) T'ye bas (menü / envanter açılır), sonra 7. sıradaki şaka bombasını seç (7 tuşu)
+                    -- 1) T'den önce alet listesini kaydet, T'ye bas → yeni gelen alet şaka bombasıdır (sırası önemli değil)
+                    local before = toolSnapshot()
                     tapKey(Enum.KeyCode.T, 0x54, false)
-                    task.wait(0.4)
-                    tool = findBomb()
-                    if not tool then
-                        tapKey(BOMB_SLOT_KEY, BOMB_SLOT_VK, false)
-                        tool = waitForBomb(1.2)
-                    end
+                    tool = waitForNewBomb(before, 1.2)
                     -- 2) Menüde bomba düğmesi varsa ona tıkla
-                    if not tool and clickBombGui() then tool = waitForBomb(1.0) end
-                    -- 3) Sanal tuş işe yaramadıysa executor tuşuyla 7'ye bas
-                    if not tool then
-                        tapKey(BOMB_SLOT_KEY, BOMB_SLOT_VK, true)
-                        tool = waitForBomb(1.0)
-                    end
+                    if not tool and clickBombGui() then tool = waitForNewBomb(before, 1.0) end
+                    -- 3) Hâlâ yoksa hotbar tuşlarını (1-9, 0) sırayla dene, bomba eline gelince dur
+                    if not tool then tool = scanSlots(before, false) end
+                    -- 4) Sanal tuş işe yaramadıysa aynısını executor tuşuyla dene
+                    if not tool then tool = scanSlots(before, true) end
                 end
             end
             if not tool then
@@ -12385,7 +12471,7 @@ end)()
         createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
             SFX.bombOn = v
             if v then
-                notify("Şaka Bombası", "Aktif! Katile isabet edince (katilken şerifi kesince) T ile 7. sıradaki bomba kuşanılır ve bir kere tıklanır.", 4)
+                notify("Şaka Bombası", "Aktif! Katile isabet edince (katilken şerifi kesince) T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır.", 4)
             end
         end)
     end)()
