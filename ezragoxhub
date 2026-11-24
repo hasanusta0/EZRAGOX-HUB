@@ -322,7 +322,6 @@ local EN_TEXT = {
     ["⏱️  Işınlanma Aralığı  •  atılırsan artır"] = "⏱️ Teleport Interval • raise if kicked",
     ["📏  Atlama Mesafesi  •  atılırsan azalt"] = "📏 Hop Distance • lower if kicked",
     ["👑  PREMİUM KIYAFET DEĞİŞTİRİCİ"] = "👑 PREMIUM OUTFIT CHANGER",
-    ["💀  Herkesi Öldür (Kill All)"] = "💀 Kill Everyone (Kill All)",
     ["💥  Seçili Oyuncuyu Fırlat (1000x)"] = "💥 Fling Selected Player (1000x)",
     ["💥  Vuruş Animasyonu (Katil Vurulunca)"] = "💥 Hit Animation (When Killer Is Hit)",
     ["💪  İtme Gücü"] = "💪 Knockback Strength",
@@ -330,17 +329,13 @@ local EN_TEXT = {
     ["📍  Silaha Işınlan (Şimdi)"] = "📍 Teleport to Gun (Now)",
     ["📏  Kaçış Mesafesi"] = "📏 Escape Distance",
     ["🔊  Şimşek Sesi (0 = Sessiz)"] = "🔊 Lightning Sound (0 = Silent)",
-    ["🔍  Oylama Tara (F9'a Rapor Yaz)"] = "🔍 Scan Vote (Write Report to F9)",
-    ["🔍  Sayacı Yeniden Bul / Teşhis"] = "🔍 Find Counter Again / Diagnose",
     ["🔥  Ateş Patlaması (Katil Vurulunca)"] = "🔥 Fire Burst (When Killer Is Hit)",
     ["🔪  Seçili Oyuncuyu Öldür"] = "🔪 Kill Selected Player",
-    ["🔫  Keskin Vuruş (Katil / Zombi) — Şimdi"] = "🔫 Sharp Shot (Killer / Zombie) — Now",
+    ["🔫  Keskin Vuruş (Katil) — Şimdi"] = "🔫 Sharp Shot (Killer) — Now",
     ["🔪  Bıçak Atma  (Tuşla En Yakındakine Hızlıca At)"] = "🔪 Knife Throw  (Hotkey, Nearest Player, Fast)",
     ["🔪  En Yakındakine Bıçak At — Şimdi"] = "🔪 Throw Knife at Nearest — Now",
     ["🔫  Silahı Önceden Ele Al (Sheriff Olunca Otomatik)"] = "🔫 Pre-Equip Gun (Auto When Sheriff)",
     ["🔁  Iskalarsa Otomatik Tekrar Vur"] = "🔁 Auto Re-Shoot If Missed",
-    ["🎯  Nişan Öngörüsü (%)  •  mermi arkada kalırsa artır"] = "🎯  Aim Lead (%)  •  raise if shots land behind",
-    ["🔍  Katil Gücü Teşhisi (F9'a Rapor Yaz)"] = "🔍 Murderer Power Diagnostic (Write Report to F9)",
     ["🖱️  Sol Tıkla Keskin Vuruş (Silah Elindeyken)"] = "🖱️ Sharp Shot on Left Click (Gun Equipped)",
     ["GÖRÜNMEZLİK"] = "INVISIBILITY",
     ["OYUN SONU"] = "ROUND END",
@@ -348,6 +343,13 @@ local EN_TEXT = {
     ["👻  Görünmezlik (Karakterim Görünmez)"] = "👻 Invisibility (My Character Hidden)",
     ["👻  Görünmezlik (Herkesten Gizlen)"] = "👻 Invisibility (Hide From Everyone)",
     ["Görünmezlik Tuşu"] = "Invisibility Key",
+    ["💀  Otomatik Herkesi Öldür  (Katilken Sürekli • aç / kapa)"] = "💀  Auto Kill Everyone  (Continuously While Murderer • on / off)",
+    ["Aktif! Katil olduğunda herkes otomatik ve sürekli kesilir."] = "Active! Everyone is stabbed automatically and continuously while you are the murderer.",
+    ["🛡️  God Mode  (2 Can — 2. Vuruşta / Kesişte Ölürsün)"] = "🛡️  God Mode  (2 Lives — Die On The 2nd Hit / Stab)",
+    ["Saldırı boşa gitti, bir can gitti! Bir daha saldırılırsan ölürsün."] = "The attack missed you, one life gone! Attacked again and you die.",
+    ["Kalkan açılamadı (hayalet karakter başlatılamadı)."] = "Shield failed to start (ghost character could not be created).",
+    ["God Mode Raporu (öldün)"] = "God Mode Report (you died)",
+    ["Aktif! 2 canın var: katilin ilk saldırısı / kesişi boşa gider, 2. saldırıda ölürsün. (Şerif silahını sana doğrultunca da devreye girer.)"] = "Active! You have 2 lives: the murderer's first attack / stab misses, the second one kills you. (It also triggers when the sheriff aims a gun at you.)",
     ["🕶️  Otomatik Görünmezlik (Katil Yaklaşınca + Bıçak Gelince)"] = "🕶️  Auto Invisibility (Murderer Nearby + Incoming Knife)",
     ["📏  Görünmezlik Tetik Mesafesi (Katil)"] = "📏  Invisibility Trigger Distance (Murderer)",
     ["🛡️  Güvenli Mesafe (Görünmezlik Biter)"] = "🛡️  Safe Distance (Invisibility Ends)",
@@ -479,14 +481,11 @@ local EN_TEXT = {
     ["Uzaklaşma sınırı kaldırıldı."]="Zoom limit removed.",
     ["🎯  Rol ESP (Katil • Polis • Masum • Kahraman • Düşen Silah)"]="🎯  Role ESP (Murderer • Sheriff • Innocent • Hero • Dropped Gun)",
     ["🔪  Atılan Bıçak ESP (Katil Fırlatınca Kırmızı)"]="🔪  Thrown Knife ESP (Red)",
-    ["⏱️  Tur Süresi Göstergesi (Ekranda Sürüklenebilir)"]="⏱️  Round Timer (Draggable)",
-    ["🧟  Zombi Modu (Zombilere de Ateş Et)"]="🧟  Zombie Mode (Shoot Zombies Too)",
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
     ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
     ["Şaka Bombası"]="Prank Bomb",
     ["🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"]="🎯  Long-Range Shot: Unavoidable Line  (Recommended)",
-    ["↔️  Hat Payı (stud)  •  katil çok sekiyorsa artır"]="↔️  Line Margin (studs)  •  raise if the murderer dodges a lot",
-    ["Aktif! Katile isabet edince (katilken şerifi kesince) T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır."]="Active! When you hit the murderer (or cut the sheriff as murderer), T is pressed, the prank bomb is found automatically in whatever slot it is, equipped and clicked once.",
+    ["Aktif! Şerifken katili vurduğun anda T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır. Iskalayınca ya da katilken atmaz."]="Active! As sheriff, the moment you hit the murderer, T is pressed, the prank bomb is found in whatever slot it is, equipped and clicked once. It does not fire on a miss or when you are the murderer.",
     ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
@@ -6084,9 +6083,6 @@ end)()
         Hero     = Color3.fromRGB(255, 225, 40),  -- kahraman: sarı
         Zombie   = Color3.fromRGB(190, 80, 255),  -- zombi: mor
     }
-    -- Zombi algılama: rol / takım / NPC adında bu kelimelerden biri geçerse zombi sayılır.
-    -- Oyundaki gerçek ad farklıysa buraya ekle.
-    local ZOMBIE_WORDS = {"zombie", "zombi", "infected", "undead"}
     local UNDER_DEPTH = 3.5       -- oto farm: coinin kaç stud ALTINDA ilerlenir (yakın = hızlı)
     local TOUCH_RISE = 1.5        -- oto farm: coin alırken coinin kaç stud altına kadar yükselinir
     local LIE_ANGLE = CFrame.Angles(math.rad(90), 0, 0) -- yatay (sırt üstü) yatış duruşu
@@ -6103,9 +6099,7 @@ end)()
     local espObjs, espTags = {}, {}
     local mapCache, mapStamp, mapDeepStamp = nil, 0, 0
     local lastShot, lastEscape = 0, 0
-    local zombieShotOn = true
     local wallOn, wallRedirect = false, nil   -- Duvar arkası vuruş (PREMİUM): açık mı / atış yönlendirici
-    local zombieCache, zombieStamp = {}, 0
     local gunAttempts, lastGunObj = 0, nil
     local visited, visitedCount, farmMap, farmDone = {}, 0, nil, false
     local bagNow, bagMax, bagEventSeen = 0, 40, false
@@ -6712,25 +6706,6 @@ end)()
             end
         end
     end
-    function PK.perkDiagnose()
-        local roles = fetchRoles()
-        local m = findRole("Murderer", false)
-        if not m then notify("Güç Teşhisi", "Katil bulunamadı (tur başlamış olmalı).", 3) return end
-        local lines = {"[EZRAGOX] Katil: " .. m.Name}
-        local info = roles[m.Name]
-        lines[#lines + 1] = "-- Oyun oyuncu verisi (GetPlayerData):"
-        if info and type(info.Raw) == "table" then PK.dumpValue(info.Raw, 0, 3, lines, "  ") else lines[#lines + 1] = "  (yok)" end
-        lines[#lines + 1] = "-- Oyuncu özellikleri (Attributes):"
-        pcall(function() for k, v in pairs(m:GetAttributes()) do lines[#lines + 1] = "  " .. k .. " = " .. tostring(v) end end)
-        lines[#lines + 1] = "-- Oyuncu altındaki nesneler:"
-        pcall(function() for _, c in ipairs(m:GetChildren()) do lines[#lines + 1] = "  " .. c.ClassName .. ": " .. c.Name end end)
-        lines[#lines + 1] = "-- Karakter özellikleri:"
-        pcall(function() if m.Character then for k, v in pairs(m.Character:GetAttributes()) do lines[#lines + 1] = "  " .. k .. " = " .. tostring(v) end end end)
-        lines[#lines + 1] = "-- Bulunan güç: " .. tostring(PK.perkTR(PK.equippedPerk(m, info, m.Character)))
-        warn(table.concat(lines, "\n"))
-        notify("Güç Teşhisi", "Rapor F9 konsoluna yazıldı. Bulunan güç: " .. tostring(PK.perkTR(PK.equippedPerk(m, info, m.Character))), 4)
-    end
-    Settings.MM2PerkDiagnose = PK.perkDiagnose
 
     -- Etiket yazısını günceller; yazı değişince etiket genişliği de yazıya göre ayarlanır
     function PK.setTagText(tag, text)
@@ -7187,55 +7162,12 @@ end)()
         return false
     end
 
-    local function nameLooksZombie(name)
-        name = string.lower(tostring(name or ""))
-        for _, w in ipairs(ZOMBIE_WORDS) do
-            if string.find(name, w, 1, true) then return true end
-        end
-        return false
-    end
-
     local function targetPartOf(ch)
         return ch:FindFirstChild("HumanoidRootPart") or ch:FindFirstChild("Torso")
             or ch:FindFirstChild("UpperTorso") or ch.PrimaryPart or ch:FindFirstChildWhichIsA("BasePart")
     end
 
-    -- Zombiler: (1) rolü/takımı zombi olan oyuncular, (2) adında zombi geçen NPC modeller
-    local function listZombies()
-        if os.clock() - zombieStamp < 1.0 then return zombieCache end
-        zombieStamp = os.clock()
-        local out = {}
-        local playerChars = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character then playerChars[p.Character] = true end
-        end
-        local roles = fetchRoles()
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character and isAlive(p) then
-                local info = roles[p.Name]
-                local teamHit = p.Team ~= nil and nameLooksZombie(p.Team.Name)
-                if (info and info.Role == "Zombie" and not info.Dead) or teamHit then
-                    out[#out + 1] = p.Character
-                end
-            end
-        end
-        for _, d in ipairs(workspace:GetDescendants()) do
-            if d:IsA("Humanoid") and d.Health > 0 then
-                local model = d.Parent
-                if model and model:IsA("Model") and not playerChars[model] then
-                    local hit = nameLooksZombie(model.Name)
-                    if not hit and model.Parent and model.Parent ~= workspace then
-                        hit = nameLooksZombie(model.Parent.Name)
-                    end
-                    if hit then out[#out + 1] = model end
-                end
-            end
-        end
-        zombieCache = out
-        return out
-    end
-
-    -- Hedef seçimi: katil (ve açıksa zombiler) arasından en yakın canlı olan
+    -- Hedef seçimi: katil (yoksa bıçaklı oyuncu)
     local function pickTarget()
         local me = myHRP()
         if not me then return nil end
@@ -7256,9 +7188,6 @@ end)()
             end
         end
         if m and m.Character then cands[#cands + 1] = m.Character end
-        if zombieShotOn then
-            for _, z in ipairs(listZombies()) do cands[#cands + 1] = z end
-        end
         local bestPart, bestHum, bestD
         for _, ch in ipairs(cands) do
             local hum = ch:FindFirstChildOfClass("Humanoid")
@@ -9842,277 +9771,6 @@ end)()
     end
 
     ---------------------------------------------------------
-    -- MM2 TUR SÜRESİ • TAMAMEN OLAY TABANLI (sürekli döngü / tarama YOK)
-    --  • Oyunun sayaç yazısı doğrudan yoldan bulunur (yerel arama, çok hızlı).
-    --  • Yazı değişince (saniyede 1 kez) gösterge güncellenir; başka iş yapılmaz.
-    --  • Sayaç bulunamazsa seyrek aralıklarla (0.5-30 sn) ve parça parça aranır.
-    ---------------------------------------------------------
-    local roundTimerSet = function() end
-    local roundTimerDiag = function() end
-    do
-        local timerOn = false
-        local tGui, tLbl, tBar, tDot
-        local src, srcConn, srcAnc, pgConn, wsConn
-        local lastText, prevSecs, maxSecs = nil, nil, 0
-        local scanToken, finderRunning = 0, false
-
-        -- Olası sayaç isimleri: oyun güncellenirse / adı farklıysa da bulunabilsin
-        local NAME_CANDIDATES = {"Timer", "TimeLabel", "RoundTimer", "CountdownLabel", "Countdown", "TimeLeft", "RoundTime"}
-
-        -- Basit zengin-metin etiketlerini temizler (<font color="...">2:05</font> gibi)
-        local function stripTags(txt)
-            if string.find(txt, "<", 1, true) then
-                txt = string.gsub(txt, "<[^>]->", "")
-            end
-            return txt
-        end
-
-        -- Sayaç metni: "2:05", "2m 5s" (loose=true ise "Ends in 2:05" gibi önekleri de kabul eder)
-        local function parseSecs(txt, loose)
-            txt = stripTags(tostring(txt or ""))
-            if #txt > 60 then return nil end
-            local m, sec
-            if loose then
-                m, sec = string.match(txt, "(%d+)%s*:%s*(%d%d)")
-                if not m then m, sec = string.match(txt, "(%d+)%s*m%s*(%d+)%s*s") end
-            else
-                m, sec = string.match(txt, "^%s*(%d+)%s*:%s*(%d%d)%s*$")
-                if not m then m, sec = string.match(txt, "^%s*(%d+)%s*m%s*(%d+)%s*s?%s*$") end
-            end
-            if m and sec then
-                local n = tonumber(m) * 60 + tonumber(sec)
-                if n <= 3600 then return n end
-            end
-            return nil
-        end
-
-        local function isShown(o)
-            local cur = o
-            while cur and cur ~= game do
-                if cur:IsA("GuiObject") and not cur.Visible then return false end
-                if cur:IsA("ScreenGui") and not cur.Enabled then return false end
-                if cur:IsA("SurfaceGui") and not cur.Enabled then return false end
-                cur = cur.Parent
-            end
-            return true
-        end
-
-        local function render()
-            if not (timerOn and tLbl) then return end
-            local secs = (src and src.Parent) and parseSecs(src.Text, true) or nil
-            local txt = secs and string.format("%d:%02d", math.floor(secs / 60), secs % 60) or "--:--"
-            if txt == lastText then return end
-            lastText = txt
-            tLbl.Text = txt
-            if secs then
-                -- Yeni tur başlayınca (süre yukarı sıçrar) tam süreyi yeniden ölç
-                if not prevSecs or secs > prevSecs + 3 or secs > maxSecs then maxSecs = secs end
-                prevSecs = secs
-                local urgent = secs <= 10
-                local warnLvl = secs <= 30
-                local col = urgent and Color3.fromRGB(255, 92, 92)
-                    or (warnLvl and Color3.fromRGB(255, 176, 74) or Color3.fromRGB(120, 215, 255))
-                tween(tLbl, 0.25, {TextColor3 = Color3.fromRGB(240, 243, 250)})
-                tween(tDot, 0.25, {BackgroundColor3 = col})
-                tween(tBar, 0.3, {Size = UDim2.new(math.clamp(secs / math.max(maxSecs, 1), 0, 1), 0, 1, 0), BackgroundColor3 = col})
-            else
-                prevSecs, maxSecs = nil, 0
-                tween(tLbl, 0.25, {TextColor3 = Color3.fromRGB(135, 145, 170)})
-                tween(tDot, 0.25, {BackgroundColor3 = Color3.fromRGB(100, 110, 135)})
-                tween(tBar, 0.3, {Size = UDim2.new(0, 0, 1, 0)})
-            end
-        end
-
-        local function detach()
-            if srcConn then srcConn:Disconnect() srcConn = nil end
-            if srcAnc then srcAnc:Disconnect() srcAnc = nil end
-            src = nil
-        end
-
-        local startFinder
-        local function attach(lbl)
-            if src == lbl then return end
-            detach()
-            src = lbl
-            srcConn = lbl:GetPropertyChangedSignal("Text"):Connect(render)
-            srcAnc = lbl.AncestryChanged:Connect(function()
-                if not lbl.Parent and src == lbl then
-                    detach()
-                    render()
-                    if timerOn then startFinder() end
-                end
-            end)
-            render()
-        end
-
-        -- Hızlı yerel arama (C++ tarafında): bilinen yollar + bilinen isimler (PlayerGui + workspace ekranları)
-        local function quickFind()
-            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if pg then
-                local main = pg:FindFirstChild("MainGUI")
-                local g = main and main:FindFirstChild("Game")
-                local t = g and g:FindFirstChild("Timer")
-                if t and t:IsA("TextLabel") then return t end
-                for _, nm in ipairs(NAME_CANDIDATES) do
-                    t = pg:FindFirstChild(nm, true)
-                    if t and t:IsA("TextLabel") then return t end
-                end
-            end
-            -- Bazı oyunlarda sayaç, haritadaki fiziksel bir ekranda (SurfaceGui) gösterilir
-            for _, nm in ipairs(NAME_CANDIDATES) do
-                local t = workspace:FindFirstChild(nm, true)
-                if t and t:IsA("TextLabel") then return t end
-            end
-            return nil
-        end
-
-        -- Yavaş yedek tarama: süre biçimli görünür yazıyı arar (parça parça, takılma yapmaz).
-        -- root = PlayerGui veya workspace (fiziksel ekranlardaki yazılar için).
-        local function deepScanIn(root, my)
-            if not root then return nil end
-            local list = root:GetDescendants()
-            for i = 1, #list do
-                if my ~= scanToken or not timerOn then return nil end
-                local d = list[i]
-                if d.ClassName == "TextLabel" and parseSecs(d.Text, true) and isShown(d) then
-                    return d
-                end
-                if i % 300 == 0 then task.wait() end
-            end
-            return nil
-        end
-        local function deepScan(my)
-            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            local f = deepScanIn(pg, my)
-            if f then return f end
-            return deepScanIn(workspace, my)
-        end
-
-        startFinder = function()
-            if finderRunning or not timerOn then return end
-            finderRunning = true
-            local my = scanToken
-            task.spawn(function()
-                local delays = {0.5, 2, 4, 8, 15, 30}
-                local i = 1
-                while alive and timerOn and my == scanToken and not (src and src.Parent) do
-                    local f = quickFind()
-                    if not f and (i <= 2 or i % 3 == 0) then f = deepScan(my) end
-                    if f and my == scanToken then attach(f) break end
-                    task.wait(delays[math.min(i, #delays)])
-                    i = i + 1
-                end
-                finderRunning = false
-            end)
-        end
-
-        -- Modern, küçük ve göze batmayan tek-satır gösterge (hap biçimli, soft cam görünüm)
-        local function buildGui()
-            if tGui then return end
-            tGui = new("Frame", {
-                Name = "EZRAGOX_MM2_Timer",
-                Size = UDim2.new(0, 108, 0, 34),
-                Position = UDim2.new(0.5, -54, 0, 64),
-                BackgroundColor3 = Color3.fromRGB(16, 18, 26),
-                BackgroundTransparency = 0.18,
-                BorderSizePixel = 0,
-                Active = true,
-                Visible = false,
-                ClipsDescendants = true,
-                ZIndex = 60,
-            }, ScreenGui)
-            pill(tGui)
-            local st = stroke(tGui, 1, Color3.fromRGB(255, 255, 255), 0.82)
-
-            tDot = new("Frame", {
-                AnchorPoint = Vector2.new(0, 0.5), Position = UDim2.new(0, 11, 0.5, 0),
-                Size = UDim2.new(0, 7, 0, 7), BackgroundColor3 = Color3.fromRGB(100, 110, 135), BorderSizePixel = 0, ZIndex = 61,
-            }, tGui)
-            pill(tDot)
-            Pulsers[#Pulsers + 1] = {obj = tDot, prop = "BackgroundTransparency", base = 0, amp = 0.35, speed = 2.6}
-
-            tLbl = new("TextLabel", {
-                Position = UDim2.new(0, 24, 0, 0), Size = UDim2.new(1, -32, 1, 0), BackgroundTransparency = 1,
-                Text = "--:--", Font = Enum.Font.GothamBold, TextSize = 15,
-                TextColor3 = Color3.fromRGB(135, 145, 170), TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 61,
-            }, tGui)
-
-            -- Alt kenarda ince, zarif ilerleme çizgisi (süre azaldıkça kısalır)
-            local track = new("Frame", {
-                Position = UDim2.new(0, 0, 1, -2), Size = UDim2.new(1, 0, 0, 2),
-                BackgroundColor3 = Color3.fromRGB(255, 255, 255), BackgroundTransparency = 0.9, BorderSizePixel = 0, ZIndex = 61,
-            }, tGui)
-            tBar = new("Frame", {
-                Size = UDim2.new(0, 0, 1, 0), BackgroundColor3 = Color3.fromRGB(120, 215, 255), BorderSizePixel = 0, ZIndex = 62,
-            }, track)
-            makeDraggable(tGui, tGui)
-        end
-
-        roundTimerSet = function(v)
-            timerOn = v and true or false
-            scanToken = scanToken + 1
-            finderRunning = false
-            if pgConn then pgConn:Disconnect() pgConn = nil end
-            if wsConn then wsConn:Disconnect() wsConn = nil end
-            if timerOn then
-                buildGui()
-                tGui.Visible = true
-                lastText, prevSecs, maxSecs = nil, nil, 0
-                render()
-                local f = quickFind()
-                if f then attach(f) else startFinder() end
-                -- Oyun sayacı yeniden oluşturursa: bilinen isimlerden biriyle yeni yazı gelirse yakalar
-                local function onNew(o)
-                    if o.ClassName ~= "TextLabel" or (src and src.Parent) then return end
-                    for _, nm in ipairs(NAME_CANDIDATES) do
-                        if o.Name == nm then attach(o) return end
-                    end
-                end
-                local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-                if pg then pgConn = pg.DescendantAdded:Connect(onNew) end
-                wsConn = workspace.DescendantAdded:Connect(onNew)
-            else
-                if tGui then tGui.Visible = false end
-                detach()
-            end
-        end
-
-        roundTimerDiag = function()
-            if not timerOn then
-                notify("Tur Süresi", "Önce 'Tur Süresi Göstergesi'ni aç.", 3)
-                return
-            end
-            local f = quickFind()
-            if f then attach(f) end
-            if src and src.Parent then
-                local msg = src:GetFullName() .. "  →  \"" .. tostring(src.Text) .. "\""
-                warn("[EZRAGOX] Tur sayacı kaynağı: " .. msg)
-                notify("Tur Süresi", "Sayaç bulundu ✓  Şu an: " .. tostring(src.Text), 4)
-            else
-                notify("Tur Süresi", "Sayaç henüz bulunamadı, aranıyor... (F9'a ayrıntı yazıldı)", 5)
-                startFinder()
-                task.spawn(function()
-                    local lines = {}
-                    local function scanRoot(root, tag)
-                        local list = root:GetDescendants()
-                        for i = 1, #list do
-                            local d = list[i]
-                            if d.ClassName == "TextLabel" and #lines < 25 and string.find(d.Text, "%d") and #d.Text < 30 then
-                                lines[#lines + 1] = tag .. ":" .. d:GetFullName() .. "  →  \"" .. d.Text .. "\""
-                            end
-                            if i % 300 == 0 then task.wait() end
-                        end
-                    end
-                    local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-                    if pg then scanRoot(pg, "PlayerGui") end
-                    scanRoot(workspace, "Workspace")
-                    warn("[EZRAGOX] Sayaç bulunamadı. Rakam içeren yazılar:\n" .. table.concat(lines, "\n"))
-                end)
-            end
-        end
-    end
-
-    ---------------------------------------------------------
     -- SAYFA İÇERİĞİ
     ---------------------------------------------------------
     createSection(MM2Page, "MURDER MYSTERY 2  •  ROL ESP")
@@ -10124,9 +9782,118 @@ end)()
             clearGunEsp()
         end
     end)
-    createButton(MM2Page, "🔍  Katil Gücü Teşhisi (F9'a Rapor Yaz)", function()
-        if Settings.MM2PerkDiagnose then Settings.MM2PerkDiagnose() end
-    end)
+    ---------------------------------------------------------
+    -- 🔪 ATILAN BIÇAK ESP (ayrı özellik) — katil bıçak fırlatınca bıçak KIRMIZI görünür
+    ---------------------------------------------------------
+    ;(function()
+        local KNIFE_COLOR = Color3.fromRGB(255, 25, 25)
+        local knifeOn = false
+        local items = {}   -- [bıçak nesnesi] = {hl, part, last, still, moved, t0}
+        local dead = setmetatable({}, {__mode = "k"})   -- bir yere saplanmış bıçaklar (konumlarıyla)
+        local folder
+
+        local function getFolderK()
+            if folder and folder.Parent then return folder end
+            folder = Instance.new("Folder")
+            folder.Name = "EZRAGOX_KnifeESP"
+            folder.Parent = ScreenGui.Parent or CoreGui
+            return folder
+        end
+
+        local function inCharacterOrTool(inst)
+            if inst:FindFirstAncestorOfClass("Tool") or inst:FindFirstAncestorOfClass("Backpack") then return true end
+            for _, p in ipairs(Players:GetPlayers()) do
+                local ch = p.Character
+                if ch and inst:IsDescendantOf(ch) then return true end
+            end
+            return false
+        end
+
+        local function isThrownKnife(inst)
+            if not (inst:IsA("BasePart") or inst:IsA("Model")) then return false end
+            if not inst.Name:lower():find("knife") then return false end
+            if inst:IsA("Model") and inst:FindFirstChildOfClass("Humanoid") then return false end
+            return not inCharacterOrTool(inst)
+        end
+
+        local function partOf(inst)
+            if inst:IsA("BasePart") then return inst end
+            return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+        end
+
+        local function clearKnife(inst)
+            local d = items[inst]
+            if not d then return end
+            pcall(function() d.hl:Destroy() end)
+            items[inst] = nil
+        end
+
+        local function clearAllKnives()
+            for inst in pairs(items) do clearKnife(inst) end
+        end
+
+        local function addKnife(inst)
+            local part = partOf(inst)
+            if not part then return end
+            local hl = Instance.new("Highlight")
+            hl.Name = "EZRAGOX_KNIFE_HL"
+            hl.Adornee = inst
+            hl.FillColor, hl.OutlineColor = KNIFE_COLOR, KNIFE_COLOR
+            hl.FillTransparency, hl.OutlineTransparency = 0.05, 0
+            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            hl.Parent = getFolderK()
+
+            items[inst] = {hl = hl, part = part, last = part.Position, still = 0, moved = false, t0 = os.clock()}
+        end
+
+        task.spawn(function()
+            while alive do
+                if knifeOn then
+                    pcall(function()
+                        local seen = {}
+                        for _, c in ipairs(workspace:GetChildren()) do
+                            local landedAt = dead[c]
+                            if landedAt then
+                                -- aynı nesne tekrar fırlatılırsa (yeniden kullanım) yeniden göster
+                                local pt = partOf(c)
+                                if pt and (pt.Position - landedAt).Magnitude > 2 then dead[c] = nil end
+                            elseif isThrownKnife(c) then
+                                seen[c] = true
+                                if not items[c] then addKnife(c) end
+                            end
+                        end
+                        for inst, d in pairs(items) do
+                            if not seen[inst] or not inst.Parent or not d.part.Parent then
+                                clearKnife(inst)
+                            else
+                                -- bıçak bir yere değip durduysa ESP kapanır
+                                local pos = d.part.Position
+                                if (pos - d.last).Magnitude > 0.4 then
+                                    d.moved, d.still = true, 0
+                                else
+                                    d.still = d.still + 1
+                                end
+                                d.last = pos
+                                if (d.moved and d.still >= 3) or (not d.moved and os.clock() - d.t0 > 0.4) then
+                                    dead[inst] = pos
+                                    clearKnife(inst)
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(0.05)
+                else
+                    task.wait(0.3)
+                end
+            end
+            clearAllKnives()
+        end)
+
+        createToggle(MM2Page, "🔪  Atılan Bıçak ESP (Katil Fırlatınca Kırmızı)", false, function(v)
+            knifeOn = v and true or false
+            if not v then clearAllKnives() end
+        end)
+    end)()
     createSection(MM2Page, "KATİL = KIRMIZI  •  POLİS = MAVİ  •  MASUM = YEŞİL  •  KAHRAMAN = SARI  •  DÜŞEN SİLAH = TURUNCU")
 
     ---------------------------------------------------------
@@ -10396,239 +10163,33 @@ end)()
         end)
     end)()
 
-    ---------------------------------------------------------
-    -- 🔪 ATILAN BIÇAK ESP (ayrı özellik) — katil bıçak fırlatınca bıçak KIRMIZI görünür
-    ---------------------------------------------------------
-    ;(function()
-        local KNIFE_COLOR = Color3.fromRGB(255, 25, 25)
-        local knifeOn = false
-        local items = {}   -- [bıçak nesnesi] = {hl, part, last, still, moved, t0}
-        local dead = setmetatable({}, {__mode = "k"})   -- bir yere saplanmış bıçaklar (konumlarıyla)
-        local folder
-
-        local function getFolderK()
-            if folder and folder.Parent then return folder end
-            folder = Instance.new("Folder")
-            folder.Name = "EZRAGOX_KnifeESP"
-            folder.Parent = ScreenGui.Parent or CoreGui
-            return folder
-        end
-
-        local function inCharacterOrTool(inst)
-            if inst:FindFirstAncestorOfClass("Tool") or inst:FindFirstAncestorOfClass("Backpack") then return true end
-            for _, p in ipairs(Players:GetPlayers()) do
-                local ch = p.Character
-                if ch and inst:IsDescendantOf(ch) then return true end
-            end
-            return false
-        end
-
-        local function isThrownKnife(inst)
-            if not (inst:IsA("BasePart") or inst:IsA("Model")) then return false end
-            if not inst.Name:lower():find("knife") then return false end
-            if inst:IsA("Model") and inst:FindFirstChildOfClass("Humanoid") then return false end
-            return not inCharacterOrTool(inst)
-        end
-
-        local function partOf(inst)
-            if inst:IsA("BasePart") then return inst end
-            return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
-        end
-
-        local function clearKnife(inst)
-            local d = items[inst]
-            if not d then return end
-            pcall(function() d.hl:Destroy() end)
-            items[inst] = nil
-        end
-
-        local function clearAllKnives()
-            for inst in pairs(items) do clearKnife(inst) end
-        end
-
-        local function addKnife(inst)
-            local part = partOf(inst)
-            if not part then return end
-            local hl = Instance.new("Highlight")
-            hl.Name = "EZRAGOX_KNIFE_HL"
-            hl.Adornee = inst
-            hl.FillColor, hl.OutlineColor = KNIFE_COLOR, KNIFE_COLOR
-            hl.FillTransparency, hl.OutlineTransparency = 0.05, 0
-            hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-            hl.Parent = getFolderK()
-
-            items[inst] = {hl = hl, part = part, last = part.Position, still = 0, moved = false, t0 = os.clock()}
-        end
-
-        task.spawn(function()
-            while alive do
-                if knifeOn then
-                    pcall(function()
-                        local seen = {}
-                        for _, c in ipairs(workspace:GetChildren()) do
-                            local landedAt = dead[c]
-                            if landedAt then
-                                -- aynı nesne tekrar fırlatılırsa (yeniden kullanım) yeniden göster
-                                local pt = partOf(c)
-                                if pt and (pt.Position - landedAt).Magnitude > 2 then dead[c] = nil end
-                            elseif isThrownKnife(c) then
-                                seen[c] = true
-                                if not items[c] then addKnife(c) end
-                            end
-                        end
-                        for inst, d in pairs(items) do
-                            if not seen[inst] or not inst.Parent or not d.part.Parent then
-                                clearKnife(inst)
-                            else
-                                -- bıçak bir yere değip durduysa ESP kapanır
-                                local pos = d.part.Position
-                                if (pos - d.last).Magnitude > 0.4 then
-                                    d.moved, d.still = true, 0
-                                else
-                                    d.still = d.still + 1
-                                end
-                                d.last = pos
-                                if (d.moved and d.still >= 3) or (not d.moved and os.clock() - d.t0 > 0.4) then
-                                    dead[inst] = pos
-                                    clearKnife(inst)
-                                end
-                            end
-                        end
-                    end)
-                    task.wait(0.05)
-                else
-                    task.wait(0.3)
-                end
-            end
-            clearAllKnives()
-        end)
-
-        createToggle(MM2Page, "🔪  Atılan Bıçak ESP (Katil Fırlatınca Kırmızı)", false, function(v)
-            knifeOn = v and true or false
-            if not v then clearAllKnives() end
-        end)
-    end)()
-
-    createSection(MM2Page, "TUR SÜRESİ")
-    createToggle(MM2Page, "⏱️  Tur Süresi Göstergesi (Ekranda Sürüklenebilir)", false, function(v)
-        roundTimerSet(v)
-    end)
-    createButton(MM2Page, "🔍  Sayacı Yeniden Bul / Teşhis", function()
-        roundTimerDiag()
-    end)
-
     useMM2Category("SHERIFF")
-    ---------------------------------------------------------
-    -- SAHTE SİLAH TEŞHİSİ
-    -- Sahte silahın herkese görünmesi için eşyayı SUNUCU vermelidir (istemcide yaratılan eşya replike olmaz).
-    -- Bu bölüm oyunda "fake / sahte / decoy" adlı eşya ve remote'ları bulup F9 konsoluna yazar;
-    -- oyuncunun çantasında / elinde zaten sunucunun verdiği bir sahte silah varsa onu kuşanır.
-    ---------------------------------------------------------
-    createSection(MM2Page, "🎭  SAHTE SİLAH (TEŞHİS)")
-    ;(function()
-        local function isFakeName(n)
-            n = string.lower(tostring(n))
-            return string.find(n, "fake", 1, true) or string.find(n, "sahte", 1, true) or string.find(n, "decoy", 1, true)
-        end
-        createButton(MM2Page, "🔎  Sahte Silah Teşhisi (F9'a yazar) + Varsa Kuşan", function()
-            local found, seen = {}, {}
-            local function scan(root, label)
-                if not root then return end
-                local ok, list = pcall(function() return root:GetDescendants() end)
-                if not ok then return end
-                for _, d in ipairs(list) do
-                    if isFakeName(d.Name) and not seen[d] and #found < 80 then
-                        seen[d] = true
-                        found[#found + 1] = label .. " | " .. d.ClassName .. " | " .. d:GetFullName()
-                    end
-                end
-            end
-            scan(game:GetService("ReplicatedStorage"), "ReplicatedStorage")
-            scan(game:GetService("StarterPack"), "StarterPack")
-            scan(LocalPlayer, "Oyuncu")
-            scan(LocalPlayer.Character, "Karakter")
-            -- Oyunun remote klasörü (isimlerden hangisi eşya / güç ile ilgili görülebilsin)
-            local names = {}
-            pcall(function()
-                local rem = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                for _, grp in ipairs(rem and rem:GetChildren() or {}) do
-                    for _, c in ipairs(grp:GetChildren()) do
-                        names[#names + 1] = grp.Name .. "." .. c.Name .. " (" .. c.ClassName .. ")"
-                    end
-                end
-            end)
-            print("[EZRAGOX] --- Sahte Silah teşhisi ---")
-            print("Fake / sahte / decoy adlı nesneler (" .. #found .. "):")
-            for _, l in ipairs(found) do print("  " .. l) end
-            print("ReplicatedStorage.Remotes içindekiler (" .. #names .. "):")
-            for _, n in ipairs(names) do print("  " .. n) end
-
-            -- Sunucunun zaten verdiği (çantada / elde) sahte silah varsa kuşan: o replike olur, herkes görür.
-            local equipped = false
-            local hum = myHum()
-            local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-            if hum and bp then
-                for _, t in ipairs(bp:GetChildren()) do
-                    if t:IsA("Tool") and isFakeName(t.Name) then
-                        pcall(function() hum:EquipTool(t) end)
-                        equipped = true
-                        break
-                    end
-                end
-            end
-            if equipped then
-                notify("Sahte Silah", "Çantandaki sahte silah kuşanıldı (herkes görür).", 3)
-            else
-                notify("Sahte Silah", "Çantanda sahte silah yok. " .. #found .. " ilgili nesne F9 konsoluna yazıldı.", 4)
-            end
-        end)
-    end)()
-
     SFX.keskinFold = SFX.foldBegin(MM2Page, "🔫  Keskin Vuruş Menüsü")
-    createButton(MM2Page, "🔫  Keskin Vuruş (Katil / Zombi) — Şimdi", function()
+    createButton(MM2Page, "🔫  Keskin Vuruş (Katil) — Şimdi", function()
         shootTarget()
     end)
-    keyRow("Keskin Vuruş Tuşu (katil / zombi)", "MM2ShootKey")
+    keyRow("Keskin Vuruş Tuşu (katil)", "MM2ShootKey")
     local LEFTCLICK_TOGGLE = "🖱️  Sol Tıkla Keskin Vuruş (Silah Elindeyken)"
     SFX.shootLeftOn = savedOr(LEFTCLICK_TOGGLE, false)
     createToggle(MM2Page, LEFTCLICK_TOGGLE, SFX.shootLeftOn, function(v)
         SFX.shootLeftOn = v
     end)
+    -- Sabit (hazır) ayarlar: nişan öngörüsü %110, kendi hareketim payı %100
     SFX.leadMul = 1.10
-    createSlider(MM2Page, "🎯  Nişan Öngörüsü (%)  •  mermi arkada kalırsa artır", 0, 200, 110, function(v)
-        SFX.leadMul = (tonumber(v) or 110) / 100
-    end)
     SFX.ownMul = 1
-    createSlider(MM2Page, "🏃  Kendi Hareketim Payı (%)  •  koşarken ıskalıyorsan artır", 0, 200, 100, function(v)
-        SFX.ownMul = (tonumber(v) or 100) / 100
-    end)
     local SWEEP_TOGGLE = "🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"
     SFX.sweepOn = savedOr(SWEEP_TOGGLE, true)
     createToggle(MM2Page, SWEEP_TOGGLE, SFX.sweepOn, function(v)
         SFX.sweepOn = v and true or false
     end)
+    -- Sabit (hazır) ayarlar: hat payı 2.5 stud, hitbox etki alanı 3 stud, bıçak etki alanı 4 stud
     SFX.sweepMargin = 2.5
-    createSlider(MM2Page, "↔️  Hat Payı (stud)  •  katil çok sekiyorsa artır", 1, 6, 2.5, function(v)
-        SFX.sweepMargin = tonumber(v) or 2.5
-    end)
     SFX.hitboxW = 3
-    createSlider(MM2Page, "📐  Hitbox Etki Alanı (stud)  •  mermi karakteri ıskalasa bile bu kadar yakından geçerse vurur, 0 = kapalı", 0, 12, 3, function(v)
-        SFX.hitboxW = tonumber(v) or 3
-        if SFX.hitboxW <= 0 and SFX.hbRestore then pcall(SFX.hbRestore) end
-    end)
     SFX.knifeHitW = 4
-    createSlider(MM2Page, "🔪  Bıçak Etki Alanı (stud)  •  bıçak karakteri ıskalasa bile yakından geçerse vurur, 0 = kapalı", 0, 15, 4, function(v)
-        SFX.knifeHitW = tonumber(v) or 4
-        if SFX.knifeHitW <= 0 and (SFX.hitboxW or 0) <= 0 and SFX.hbRestore then pcall(SFX.hbRestore) end
-    end)
     local SMART_TOGGLE = "🧠  Ani Yön Değişiminde Hızlı Takip"
     SFX.smartOn = savedOr("🧠  Akıllı Zamanlama (kaçan hedefte kısa bekle)", true)
     createToggle(MM2Page, SMART_TOGGLE, SFX.smartOn, function(v)
         SFX.smartOn = v
-    end)
-    createButton(MM2Page, "📊  Keskin Vuruş İsabet İstatistiği", function()
-        local pct = SFX.shots > 0 and math.floor(SFX.hits / SFX.shots * 100 + 0.5) or 0
-        notify("Keskin Vuruş", string.format("İsabet: %d / %d atış (%%%d)  •  otomatik ayar çarpanı: x%.2f", SFX.hits, SFX.shots, pct, SFX.autoMul), 5)
     end)
     -- Silah tur başında OTOMATİK ele alınmaz. Silah yalnızca Keskin Vuruş kullanılınca
     -- (shootTarget / fireGunAt içinde) o an ele alınır.
@@ -10637,11 +10198,6 @@ end)()
     SFX.retryOn = savedOr(RETRY_TOGGLE, true)
     createToggle(MM2Page, RETRY_TOGGLE, SFX.retryOn, function(v)
         SFX.retryOn = v
-    end)
-    local ZOMBIE_TOGGLE = "🧟  Zombi Modu (Zombilere de Ateş Et)"
-    zombieShotOn = savedOr(ZOMBIE_TOGGLE, true)
-    createToggle(MM2Page, ZOMBIE_TOGGLE, zombieShotOn, function(v)
-        zombieShotOn = v
     end)
 
     local WALL_TOGGLE = "🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"
@@ -11557,9 +11113,34 @@ end)()
     createButton(MM2Page, "🔪  Seçili Oyuncuyu Öldür", function()
         killPlayer(currentTarget())
     end)
-    createButton(MM2Page, "💀  Herkesi Öldür (Kill All)", function()
-        killAll()
-    end)
+    do
+        -- Katil olduğunda herkesi otomatik ve sürekli keser (Kill All'u kendisi tekrar tekrar çalıştırır). Aç / kapa anahtarı.
+        local KILLAUTO_TOGGLE = "💀  Otomatik Herkesi Öldür  (Katilken Sürekli • aç / kapa)"
+        SFX.autoKillOn = savedOr(KILLAUTO_TOGGLE, false)
+        createToggle(MM2Page, KILLAUTO_TOGGLE, SFX.autoKillOn, function(v)
+            SFX.autoKillOn = v
+            if v then
+                notify("Otomatik Öldür", "Aktif! Katil olduğunda herkes otomatik ve sürekli kesilir.", 4)
+            end
+        end)
+        task.spawn(function()
+            while alive do
+                task.wait(0.4)
+                if SFX.autoKillOn and not killBusy and SFX.hasKnife and SFX.hasKnife() then
+                    pcall(function()
+                        local hum = myHum()
+                        if not hum or hum.Health <= 0 then return end
+                        for _, pl in ipairs(Players:GetPlayers()) do
+                            if pl ~= LocalPlayer and isAlive(pl) then
+                                killAll()
+                                return
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end
 
     createSection(MM2Page, "🗡️  SİLAHI ALANI OTOMATİK KES  (KATİL)")
     do
@@ -12104,8 +11685,8 @@ end)()
         end)
 
         ---------------------------------------------------------
-        -- ŞAKA BOMBASI: katile isabet edince envanterdeki şaka bombasını otomatik kuşanıp BİR KERE kullanır
-        -- (her isabette bir kez). Bomba aleti, adında bomb / bomba / şaka / prank / joke geçen alet olarak bulunur.
+        -- ŞAKA BOMBASI: yalnızca ŞERİFKEN (silah sendeyken) katile GERÇEKTEN isabet edince envanterdeki şaka bombasını otomatik
+        -- kuşanıp BİR KERE kullanır. Iskalayınca ve katilken atmaz. Bomba, adında bomb / bomba / şaka / prank / joke geçen alettir.
         ---------------------------------------------------------
         local BOMB_WORDS = {"bomb", "bomba", "şaka", "saka", "prank", "joke"}
         local BOMB_TOGGLE = "💣  Katile İsabet Edince Şaka Bombası Kullan"
@@ -12123,6 +11704,14 @@ end)()
 
         local function bombHolders()
             return {LocalPlayer.Character, LocalPlayer:FindFirstChildOfClass("Backpack")}
+        end
+
+        -- Sadece şerifken (silah sende) çalışır; katilken (bıçak varken) ASLA atmaz
+        local function bombRoleOk()
+            local role = myRole()
+            if role == "Murderer" then return false end
+            if SFX.hasKnife and SFX.hasKnife() then return false end
+            return role == "Sheriff" or hasGun()
         end
 
         local function findBomb()
@@ -12375,6 +11964,7 @@ end)()
         -- Böylece isabet olduğunda bomba zaten hazırdır; sadece eline alıp tıklanır. Bomba eline ALINMAZ (silahı bırakmaz).
         local function prepBomb()
             if not SFX.bombOn or SFX.bombPrepRun then return end
+            if not bombRoleOk() then return end
             if os.clock() - (SFX.bombPrepAt or 0) < 3 then return end
             if findBomb() then return end
             local h0 = myHum()
@@ -12391,6 +11981,7 @@ end)()
         -- Her atıştan sonra katilin canına bakar: can düştü ya da öldüyse = isabet → bombayı kullan
         local function bombWatch()
             if SFX.bombBusy then return end
+            if not bombRoleOk() then return end
             local mp
             for name, info in pairs(roleCache) do
                 if info.Role == "Murderer" and not info.Dead then
@@ -12414,7 +12005,10 @@ end)()
             SFX.bombBusy = true
             local h0, t0 = hum.Health, os.clock()
             local hit = false
-            while alive and mp.Parent and os.clock() - t0 < 2.2 + getPingSeconds() do
+            -- Kurşun sunucuda anında işlenir: isabet varsa katilin canı ping süresi içinde düşer. Pencere kısa tutulur ki
+            -- ıskalayıp sonra başka sebepten (başka oyuncu / tur sonu) düşen can "isabet" sayılmasın.
+            local limit = math.clamp(0.3 + getPingSeconds() * 1.5, 0.45, 1.3)
+            while alive and mp.Parent and os.clock() - t0 < limit do
                 if hum.Health < h0 - 0.01 or hum.Health <= 0 or not hum.Parent or mp.Character ~= ch then
                     hit = true
                     break
@@ -12424,70 +12018,6 @@ end)()
             if hit then pcall(useBomb) end
             SFX.bombBusy = false
         end
-
-        -- KATİLKEN: şerifi bıçakla kesince / bıçak atıp vurunca da aynı akış (bombayı kuşan + bir kere tıkla).
-        -- Şerifin canı düşerse / ölürse ve bu bizim bıçak hareketimizle ilgiliyse (yakında, yeni bıçak
-        -- tıklaması ya da bıçak atma) isabet sayılır.
-        task.spawn(function()
-            local snap, lastRole, knifeSeen = {}, 0, setmetatable({}, {__mode = "k"})
-            while alive do
-                task.wait(0.03)
-                if SFX.bombOn and not SFX.bombBusy and SFX.hasKnife and SFX.hasKnife() then
-                    pcall(function()
-                        local mych = LocalPlayer.Character
-                        local kn = mych and mych:FindFirstChild("Knife")
-                        if kn and kn:IsA("Tool") and not knifeSeen[kn] then
-                            knifeSeen[kn] = true
-                            bind(kn.Activated, function() SFX.lastKnifeAct = os.clock(); task.spawn(prepBomb) end)
-                        end
-                        if os.clock() - lastRole > 1 then
-                            lastRole = os.clock()
-                            pcall(fetchRoles)
-                        end
-                        for name, info in pairs(roleCache) do
-                            if info.Role == "Sheriff" then
-                                local p = Players:FindFirstChild(name)
-                                if p and p ~= LocalPlayer then
-                                    local ch2 = p.Character
-                                    local hum = ch2 and ch2:FindFirstChildOfClass("Humanoid")
-                                    local hrp = ch2 and ch2:FindFirstChild("HumanoidRootPart")
-                                    local s0 = snap[p]
-                                    if s0 and ch2 and s0.ch ~= ch2 and hum and hum.Health > 0 then s0 = nil end   -- yeniden doğdu
-                                    local hit = false
-                                    if not (hum and hrp) then
-                                        hit = s0 ~= nil
-                                    elseif hum.Health <= 0 then
-                                        hit = s0 ~= nil
-                                    elseif s0 and hum.Health < s0.hp - 0.01 then
-                                        hit = true
-                                    end
-                                    if hit then
-                                        snap[p] = nil
-                                        local now = os.clock()
-                                        local mine = (s0.near <= 25) or (now - (SFX.lastKnifeAct or 0) < 2.5)
-                                            or (now - (SFX.lastThrow or 0) < 3.5)
-                                        if mine and now - (SFX.bombMurdAt or 0) > 3 then
-                                            SFX.bombMurdAt = now
-                                            SFX.bombBusy = true
-                                            pcall(useBomb)
-                                            SFX.bombBusy = false
-                                            snap = {}
-                                            return
-                                        end
-                                    elseif hum and hrp and hum.Health > 0 then
-                                        local me = myHRP()
-                                        snap[p] = {hp = hum.Health, ch = ch2,
-                                            near = me and (hrp.Position - me.Position).Magnitude or 1e9}
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                else
-                    snap = {}
-                end
-            end
-        end)
 
         local baseShot = SFX.shot
         SFX.shot = function(...)
@@ -12499,7 +12029,7 @@ end)()
         createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
             SFX.bombOn = v
             if v then
-                notify("Şaka Bombası", "Aktif! Katile isabet edince (katilken şerifi kesince) T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır.", 4)
+                notify("Şaka Bombası", "Aktif! Şerifken katili vurduğun anda T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır. Iskalayınca ya da katilken atmaz.", 4)
             end
         end)
     end)()
@@ -12918,15 +12448,66 @@ end)()
             return threat, approaching
         end
 
+        -- GOD MODE KALKANI (Premium → God Mode, "2 can"):
+        -- Sunucu öldürmeyi kendisi yaptığı için canı istemciden doldurmak işe yaramıyor. Bunun yerine ilk saldırı BOŞA GİDER:
+        -- katil (bıçak elinde) sana yaklaşınca ya da fırlattığı bıçak sana gelince gerçek karakterin kısa süre yerin altına alınır,
+        -- bıçak / kesiş ona değemez ve 1 can gitmiş sayılır. Sonra görünür olursun; 2. saldırıda kalkan yoktur, ölürsün.
+        -- Her doğuşta kalkan yenilenir. Anahtar Premium sayfasında olduğu için durum Settings.GodShield üzerinden paylaşılır.
+        local SHIELD_RANGE = 26          -- katilin bıçağı elindeyken bu kadar yaklaşırsa kalkan devreye girer (stud)
+        local SHIELD_RANGE_NOKNIFE = 14  -- bıçağı elinde değilse bu kadar yakında devreye girer (stud)
+        local SHIELD_RUSH_RANGE = 40     -- katil bu mesafedeyken aniden hızla yaklaşırsa / ışınlanırsa da devreye girer (stud)
+        local SHIELD_HIDE = 2.0          -- kalkan en az bu kadar sn görünmez kalır (sn)
+        local SHIELD_HOLD_RANGE = 14     -- katil bu kadar yakında durdukça görünmezlik uzar (stud)
+        local SHIELD_MAX = 6             -- kalkan en fazla bu kadar sn sürer (sn)
+        -- Silah (şerif / kahraman): kurşun anında vurduğu için atıştan SONRA kaçmak imkânsız; bu yüzden silahı elinde tutan biri
+        -- sana doğru dönünce (nişan alırken) atıştan ÖNCE gizlenilir.
+        local GUN_RANGE = 150            -- silahlı oyuncu bu kadar yakınsa nişanı kontrol edilir (stud)
+        local GUN_LATERAL = 12           -- nişan hattı seni bu kadar yakından (yan sapma) geçiyorsa "sana doğrultulmuş" sayılır (stud)
+        local GUN_MAX_ANGLE = 35         -- silahlının yüzü sana bu açıdan (derece) fazla dönükse sayılmaz
+        local GUN_AIM_TIME = 0.12        -- bu kadar sn kesintisiz doğrultulursa kalkan açılır (sn)
+        local sLives, sHiding, sUntil, sStart, sFailAt = 2, false, 0, 0, 0
+        local mPrevPos, mPrevT, mPrevHrp = nil, 0, nil
+        local gAimT, lastStepT = 0, nil
+        local dbg = {d = math.huge, knifeOut = false, ghost = false, trigAt = 0, gun = "yok", why = "-"}
+        Settings.GodShield = Settings.GodShield or {on = false}
+        Settings.GodShield.reset = function() sLives, sHiding, sUntil = 2, false, 0 end
+
+        -- Ölüm raporu: God Mode açıkken ölürsen o andaki durumu bildirir (kalkan neden tutmadı görmek için)
+        local function hookDeath(ch)
+            task.spawn(function()
+                local h = ch:WaitForChild("Humanoid", 10)
+                if not h then return end
+                bind(h.Died, function()
+                    local gs = Settings.GodShield
+                    if not (gs and gs.on) then return end
+                    local msg = string.format("Kalkan canı: %d • hayalet açıktı: %s • katil mesafesi: %s stud • katilin bıçağı elinde: %s • silahlı oyuncu: %s • son tetik: %s",
+                        sLives, dbg.ghost and "evet" or "hayır",
+                        dbg.d < math.huge and string.format("%.0f", dbg.d) or "yok",
+                        dbg.knifeOut and "evet" or "hayır",
+                        dbg.gun,
+                        dbg.trigAt > 0 and string.format("%.1f sn önce (%s)", os.clock() - dbg.trigAt, dbg.why) or "hiç tetiklenmedi")
+                    notify("God Mode Raporu (öldün)", msg, 10)
+                    pcall(warn, "[EZRAGOX God Mode] " .. msg)
+                end)
+            end)
+        end
+        bind(LocalPlayer.CharacterAdded, function(ch)
+            sLives, sHiding, sUntil = 2, false, 0
+            hookDeath(ch)
+        end)
+        if LocalPlayer.Character then hookDeath(LocalPlayer.Character) end
+
         local function step()
             local now = os.clock()
+            local auto = SFX.autoInvisOn
+            local shield = Settings.GodShield and Settings.GodShield.on
             if SFX.invisOn then
                 -- elle açılan görünmezlik öncelikli: karışma
-                ownsGhost, mNeed, kNeed = false, false, false
+                ownsGhost, mNeed, kNeed, sHiding = false, false, false, false
                 return
             end
-            if not SFX.autoInvisOn then
-                mNeed, kNeed = false, false
+            if not (auto or shield) then
+                mNeed, kNeed, sHiding = false, false, false
                 if ownsGhost then
                     ownsGhost = false
                     if SFX.ghostActive and SFX.ghostActive() then SFX.ghostStop() end
@@ -12939,7 +12520,7 @@ end)()
             if now - roleAt > 0.3 then roleAt = now; role, roleDead = myRole() end
             local hum = myHum()
             if not hum or hum.Health <= 0 or roleDead or role == "Murderer" then
-                mNeed, kNeed = false, false
+                mNeed, kNeed, sHiding = false, false, false
                 if ownsGhost then
                     ownsGhost = false
                     if SFX.ghostActive() then SFX.ghostStop() end
@@ -12954,14 +12535,17 @@ end)()
             end
             if not me then return end
 
-            -- 1) Katil yakınlığı (yaklaşınca aç, güvenli mesafeye uzaklaşınca kapat)
+            -- Katil bilgisi
             if now - mAt > 0.15 then
                 mAt = now
                 local m = findRole("Murderer", true)
                 mHrp = m and m.Character and m.Character:FindFirstChild("HumanoidRootPart") or nil
             end
-            if mHrp and mHrp.Parent then
-                local d = (mHrp.Position - me).Magnitude
+            local d = math.huge
+            if mHrp and mHrp.Parent then d = (mHrp.Position - me).Magnitude end
+
+            -- 1) Otomatik görünmezlik: katil yakınlığı (yaklaşınca aç, güvenli mesafeye uzaklaşınca kapat)
+            if auto and d < math.huge then
                 if not mNeed and d <= nearDist then
                     mNeed = true
                 elseif mNeed and d >= math.max(safeDist, nearDist + 8) then
@@ -12971,7 +12555,7 @@ end)()
                 mNeed = false
             end
 
-            -- 2) Fırlatılan bıçak
+            -- Fırlatılan bıçaklar
             if now - lastScan > 0.3 then
                 lastScan = now
                 for _, c in ipairs(workspace:GetChildren()) do trackKnife(c) end
@@ -12980,21 +12564,106 @@ end)()
             if next(knives) then
                 threat, approaching = evalKnives(me, now, getPingSeconds() + KNIFE_LEAD_EXTRA)
             end
-            if not kNeed then
-                if threat then kNeed, kStart, kRelAt = true, now, nil end
-            else
-                if approaching then
-                    kRelAt = nil
+
+            -- 2) Otomatik görünmezlik: bıçak geliyorsa gizlen, geçince / saplanınca görünür ol
+            if auto then
+                if not kNeed then
+                    if threat then kNeed, kStart, kRelAt = true, now, nil end
                 else
-                    kRelAt = kRelAt or now
+                    if approaching then
+                        kRelAt = nil
+                    else
+                        kRelAt = kRelAt or now
+                    end
+                    if (kRelAt and now - kRelAt >= KNIFE_RELEASE_DELAY) or now - kStart > KNIFE_MAX_HIDE then
+                        kNeed, kRelAt = false, nil
+                    end
                 end
-                if (kRelAt and now - kRelAt >= KNIFE_RELEASE_DELAY) or now - kStart > KNIFE_MAX_HIDE then
-                    kNeed, kRelAt = false, nil
-                end
+            else
+                kNeed = false
             end
 
-            -- Karar: katil yakınında YA DA bıçak geliyorsa gizlen; ikisi de bittiyse görünür ol
-            if mNeed or kNeed then
+            -- 3) God Mode kalkanı: ilk saldırıyı boşa çıkar (1 can), sonraki saldırıda koruma yok
+            local sNeed = false
+            local knifeOut = mHrp and mHrp.Parent and mHrp.Parent:FindFirstChild("Knife") ~= nil or false
+            dbg.d, dbg.knifeOut, dbg.ghost = d, knifeOut, SFX.ghostActive()
+            -- katilin yaklaşma hızı / ani konum atlaması (ışınlanma)
+            local mSpeed, mJump = 0, 0
+            if mHrp and mHrp.Parent then
+                local pp = mHrp.Position
+                if mPrevPos and mPrevHrp == mHrp then
+                    mJump = (pp - mPrevPos).Magnitude
+                    mSpeed = ((mPrevPos - me).Magnitude - d) / math.max(now - mPrevT, 1e-3)   -- + = yaklaşıyor
+                end
+                mPrevPos, mPrevT, mPrevHrp = pp, now, mHrp
+            else
+                mPrevPos, mPrevHrp = nil, nil
+            end
+            -- Silahını sana doğrultan oyuncu var mı? (yüzü sana dönük + silah elinde)
+            local gunAimed = false
+            if shield then
+                local dtS = math.min(now - (lastStepT or now), 0.1)
+                lastStepT = now
+                local bestName, bestLat, bestDist, bestAng = nil, math.huge, 0, 0
+                for _, pl in ipairs(Players:GetPlayers()) do
+                    if pl ~= LocalPlayer then
+                        local pch = pl.Character
+                        local ph = pch and pch:FindFirstChild("HumanoidRootPart")
+                        local gun = pch and pch:FindFirstChild("Gun")
+                        if ph and gun and gun:IsA("Tool") then
+                            local v = me - ph.Position
+                            local look = ph.CFrame.LookVector
+                            local fl = Vector3.new(look.X, 0, look.Z)
+                            local tv = Vector3.new(v.X, 0, v.Z)
+                            if fl.Magnitude > 0.01 and tv.Magnitude > 0.5 and v.Magnitude <= GUN_RANGE then
+                                local ang = math.deg(math.acos(math.clamp(fl.Unit:Dot(tv.Unit), -1, 1)))
+                                local lat = tv.Magnitude * math.sin(math.rad(ang))
+                                if lat < bestLat then bestName, bestLat, bestDist, bestAng = pl.Name, lat, v.Magnitude, ang end
+                                if ang <= GUN_MAX_ANGLE and lat <= GUN_LATERAL then gunAimed = true end
+                            end
+                        end
+                    end
+                end
+                gAimT = gunAimed and (gAimT + dtS) or 0
+                dbg.gun = bestName and string.format("%s %.0f stud, açı %.0f°%s", bestName, bestDist, bestAng, gunAimed and " (nişan alıyor)" or "") or "yok"
+            else
+                gAimT = 0
+            end
+
+            if shield then
+                if sHiding then
+                    -- katil hâlâ yakınsa / bıçak geliyorsa / silah hâlâ sana dönükse görünmezlik uzar (en fazla SHIELD_MAX)
+                    if approaching or d <= SHIELD_HOLD_RANGE or gunAimed then sUntil = math.max(sUntil, now + 0.3) end
+                    if now >= sUntil or now - sStart > SHIELD_MAX then
+                        sHiding = false
+                    else
+                        sNeed = true
+                    end
+                elseif sLives >= 2 and not SFX.ghostActive() then
+                    local close = d <= (knifeOut and SHIELD_RANGE or SHIELD_RANGE_NOKNIFE)
+                    local rush = d <= SHIELD_RUSH_RANGE and (mSpeed > 14 or mJump > 12)
+                    local gunTrig = gAimT >= GUN_AIM_TIME
+                    if close or rush or threat or gunTrig then
+                        if SFX.ghostStart() then
+                            dbg.why = gunTrig and "silah doğrultuldu" or (threat and "bıçak geldi" or (rush and "katil hızla yaklaştı" or "katil yakında"))
+                            -- can ancak hayalet gerçekten açılınca gitmiş sayılır
+                            ownsGhost = true
+                            sLives, sHiding, sUntil, sStart = 1, true, now + SHIELD_HIDE, now
+                            dbg.trigAt = now
+                            sNeed = true
+                            notify("God Mode", "Saldırı boşa gitti, bir can gitti! Bir daha saldırılırsan ölürsün.", 3)
+                        elseif now - sFailAt > 3 then
+                            sFailAt = now
+                            notify("God Mode", "Kalkan açılamadı (hayalet karakter başlatılamadı).", 3)
+                        end
+                    end
+                end
+            else
+                sHiding = false
+            end
+
+            -- Karar: otomatik görünmezlik YA DA kalkan istiyorsa gizlen; hiçbiri istemiyorsa görünür ol
+            if mNeed or kNeed or sNeed then
                 if not SFX.ghostActive() and now - startTry > 0.1 then
                     startTry = now
                     if SFX.ghostStart() then ownsGhost = true end
@@ -13018,26 +12687,9 @@ end)()
                 notify("Görünmezlik", "Otomatik görünmezlik aktif: katil yaklaşınca ya da bıçak sana doğru gelince görünmez olursun; katil uzaklaşınca / bıçak geçince ya da saplanınca görünür olursun.", 5)
             end
         end)
-        createSlider(MM2Page, "📏  Görünmezlik Tetik Mesafesi (Katil)", 8, 60, nearDist, function(v)
-            nearDist = v
-        end, " st")
-        createSlider(MM2Page, "🛡️  Güvenli Mesafe (Görünmezlik Biter)", 20, 120, safeDist, function(v)
-            safeDist = v
-        end, " st")
     end)()
 
     useMM2Category("GENEL")
-    do
-        local MOUSEFIX_TOGGLE = "🔓  Fare Kilidi Takılırsa Otomatik Bırak (Shift-Lock / Görünmezlik)"
-        SFX.mouseFixOn = savedOr(MOUSEFIX_TOGGLE, true)
-        createToggle(MM2Page, MOUSEFIX_TOGGLE, SFX.mouseFixOn, function(v)
-            SFX.mouseFixOn = v
-        end)
-        keyRow("Fare Kilidini Çöz Tuşu (takılırsa bas)", "MM2UnlockKey")
-        createButton(MM2Page, "🔓  Fare Kilidini Çöz (Şimdi)", function()
-            if SFX.mouseRescue then SFX.mouseRescue() end
-        end)
-    end
     createSection(MM2Page, "OYUN SONU")
     -- Tur bitince çıkan sonuç / kazanan ekranını otomatik kapatır (ekrana hiç getirmez).
     -- GÜVENLİ SÜRÜM: yalnızca adı RoundEnd / EndScreen / GameOver / Winner gibi sonuç ekranına benzeyen arayüzler gizlenir.
@@ -13379,9 +13031,6 @@ end)()
         end, false)
         SFX.autoFlingToggle.Set(false, true, true)   -- açılışta kapalı başlasın
         keyRow("Sürekli Fırlat Aç/Kapa Tuşu  (orta tık atanabilir)", "MM2LoopFlingKey")
-        createSlider(MM2Page, "⏱  Fırlatma Aralığı  (10 = 1.0 sn  •  20 = 2.0 sn)", 10, 20, 15, function(v)
-            SFX.autoFlingGap = (tonumber(v) or 15) / 10
-        end)
         task.spawn(function()
             local lastEnd, away, lastTarget = 0, false, nil
             while alive do
@@ -13947,7 +13596,7 @@ end)()
         escapeDist = v
     end, " st")
 
-    createSection(MM2Page, "OTO FARM")
+    SFX.farmFold = SFX.foldBegin(MM2Page, "🌾  OTO FARM")
     local farmToggle
     -- Farm çalışırken Roblox'un standart Idled/AFK sinyaline karşı otomatik koruma.
     -- Bu, yalnızca boşta kalma kaynaklı atılmayı hedefler; moderatör veya oyun
@@ -14661,7 +14310,8 @@ end)()
         createSlider(MM2Page, HOPMS_T, 50, 600, 200, function(v) hopMs = v end, " ms")
         createSlider(MM2Page, HOPDIST_T, 4, 40, 16, function(v) hopDist = v end, " st")
 
-        createSection(MM2Page, "FARM BİTİNCE")
+        SFX.foldEnd(SFX.farmFold)
+        SFX.farmEndFold = SFX.foldBegin(MM2Page, "🏁  FARM BİTİNCE")
         local KILL_T = "🗡️  Katilken Farm Bitince Herkesi Kes  (Kill All • otomatik)"
         murderKillOn = tState(KILL_T, true)
         createToggle(MM2Page, KILL_T, true, function(v)
@@ -14682,9 +14332,10 @@ end)()
         end
         for i, o in ipairs(endObjs) do o.Set(i == endMode, true, true) end
         SFX.vFarmOn = function() return farmEnabled end
+        SFX.foldEnd(SFX.farmEndFold)
     end)()
 
-    createSection(MM2Page, "IŞINLANMA")
+    SFX.tpFold = SFX.foldBegin(MM2Page, "🌀  IŞINLANMA")
     createButton(MM2Page, "🗺️  Haritaya Işınlan", function()
         mapTeleport()
     end)
@@ -15886,6 +15537,8 @@ end)()
     ---------------------------------------------------------
     -- HARİTA OYLAMA PANELİ  (lobideyken her zaman ekranda; ped otomatik bulunur veya elle kaydedilir)
     ---------------------------------------------------------
+    SFX.foldEnd(SFX.tpFold)
+
     useMM2Category("GENEL")
     createSection(MM2Page, "HARİTA OYLAMA")
     ;(function()
@@ -17398,102 +17051,14 @@ end)()
                 notify("Harita Oylama", "Panel yalnızca ped bulununca gösterilecek.", 3)
             end
         end)
-
-        createButton(MM2Page, "🔍  Oylama Tara (F9'a Rapor Yaz)", function()
-            local lobby = workspace:FindFirstChild("Lobby")
-            if not lobby then
-                notify("Oylama", "Workspace içinde Lobby bulunamadı.", 3)
-                return
-            end
-            local count = 0
-            print("===== EZRAGOX OYLAMA TARAMASI =====")
-            for _, d in ipairs(lobby:GetDescendants()) do
-                if d:IsA("BillboardGui") or d:IsA("SurfaceGui") then
-                    local texts = {}
-                    for _, x in ipairs(d:GetDescendants()) do
-                        if x:IsA("TextLabel") and x.Text ~= "" then texts[#texts + 1] = x.Text end
-                    end
-                    if #texts > 0 then
-                        count = count + 1
-                        if count <= 60 then
-                            print(d:GetFullName() .. "  ->  " .. table.concat(texts, " | "))
-                        end
-                    end
-                end
-            end
-            print("--- Lobby içindeki dokunma algılayan parçalar (ilk 40) ---")
-            local tc = 0
-            for _, d in ipairs(lobby:GetDescendants()) do
-                if d:IsA("BasePart") and hasTouch(d) then
-                    tc = tc + 1
-                    if tc <= 40 then print(d:GetFullName()) end
-                end
-            end
-            print("--- Ekran arayüzleri (PlayerGui) ---")
-            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if pg then
-                for _, g in ipairs(pg:GetChildren()) do print(g.Name .. (g:IsA("ScreenGui") and (g.Enabled and "  [açık]" or "  [kapalı]") or "")) end
-            end
-            print("--- Lobby resimleri (harita fotoğrafı adayları, ilk 30) ---")
-            for i, e in ipairs(imgPool) do
-                if i > 30 then break end
-                local inst = e.img or e.decal
-                if inst then print(inst:GetFullName() .. "  ->  " .. tostring(e.img and e.img.Image or e.decal.Texture)) end
-            end
-            print("--- Oylama bitiş sinyalleri ---")
-            print("Dinlenen: " .. (#hookedSignals > 0 and table.concat(hookedSignals, ", ") or "YOK"))
-            pcall(function()
-                local gp = RS.Remotes.Gameplay
-                local names = {}
-                for _, c in ipairs(gp:GetChildren()) do names[#names + 1] = c.ClassName .. ":" .. c.Name end
-                print("ReplicatedStorage.Remotes.Gameplay: " .. table.concat(names, ", "))
-            end)
-            print("Tabela: " .. count .. "  |  Otomatik ped: " .. #pads .. "  |  Kayıtlı ped: " .. #savedRecs)
-            notify("Oylama", "Rapor F9 konsoluna yazıldı. Otomatik ped: " .. #pads .. ", kayıtlı: " .. #savedRecs, 4)
-        end)
     end)()
 
     ---------------------------------------------------------
-    -- FARE KİLİDİ TAKILMASI KURTARICISI
-    -- Bazen shift-lock'tan çıkınca ya da görünmezlik açılıp kapanınca fare ekranın ortasında kilitli kalıyor
-    -- (kamera sağ tık basılıymış gibi dönüyor, imleç serbest hareket etmiyor). Burada o durum algılanır:
-    --  • LockCurrentPosition (sağ tık kilidi) ama sağ / orta tuş basılı DEĞİL  -> serbest bırakılır.
-    --  • LockCenter ama shift-lock kapanmış olmalı (Shift'e basıldı, hâlâ kilitli)  -> serbest bırakılır.
-    --    Roblox kilidi hemen geri koyarsa (gerçek shift-lock / birinci şahıs) bir daha dokunulmaz.
-    --  • "Fare Kilidini Çöz" tuşu (varsayılan N) her şeyi elle, zorla sıfırlar.
-    -- Gerçek shift-lock / birinci şahıs / sağ tık basılıyken kendiliğinden HİÇBİR ŞEYE dokunulmaz.
+    -- FARE TUŞ DURUMU (sağ / orta tık basılı mı?) — diğer özellikler kullanır
     ---------------------------------------------------------
     SFX.mouseBoost = SFX.mouseBoost or 0
     do
-        local RS_NAME = "EZRAGOX_MouseUnstick"
         local MB2, MB3 = Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3
-        local cams, camsTried = nil, false
-        local stuckT, lastFix, level = nil, 0, 0
-        local lastShift, expectOff = 0, false
-        local lcBackoff, lcProbeAt = 0, nil
-        local lastMsg = 0
-
-        local function say(msg)
-            if os.clock() - lastMsg < 3 then return end
-            lastMsg = os.clock()
-            pcall(notifyTop, msg, 3)
-        end
-
-        local function getCams()
-            if camsTried then return cams end
-            camsTried = true
-            pcall(function()
-                local ps = LocalPlayer:FindFirstChild("PlayerScripts")
-                local pm = ps and ps:FindFirstChild("PlayerModule")
-                local m = pm and require(pm)
-                cams = m and m:GetCameras() or nil
-            end)
-            return cams
-        end
-
-        -- Sağ / orta tuşun basılı olup olmadığı: Roblox'un IsMouseButtonPressed sorgusu bazen (başka bir tuşa
-        -- basılınca vb.) yanlışlıkla false dönebiliyor. Bu yüzden basma / bırakma OLAYLARIYLA kendi durumumuzu da tutarız;
-        -- ikisinden biri "basılı" diyorsa tuş basılı sayılır (sağ tıkla kamera çevirirken W'ye basınca kilit bırakılmasın).
         local heldBtn = {}
         bind(UserInputService.InputBegan, function(input)
             local t = input.UserInputType
@@ -17504,156 +17069,11 @@ end)()
             if t == MB2 or t == MB3 then heldBtn[t] = false end
         end)
         bind(UserInputService.WindowFocusReleased, function() heldBtn = {} end)
-        local function pressed(b)
+        function SFX.mouseHeld(b)
             if heldBtn[b] then return true end
             local ok, v = pcall(function() return UserInputService:IsMouseButtonPressed(b) end)
             return ok and v
         end
-        function SFX.mouseHeld(b) return pressed(b) end
-
-        -- Roblox'un shift-lock durumu: true / false, okunamazsa nil
-        local function robloxShiftLocked()
-            local c = getCams()
-            if not c then return nil end
-            local ok, v = pcall(function()
-                return c.activeMouseLockController and c.activeMouseLockController:GetIsMouseLocked()
-            end)
-            if ok and type(v) == "boolean" then return v end
-            return nil
-        end
-
-        local function inFirstPerson(cam)
-            if (cam.CFrame.Position - cam.Focus.Position).Magnitude < 1.5 then return true end
-            local c = getCams()
-            local fp = false
-            pcall(function() fp = c and c.activeCameraController and c.activeCameraController.inFirstPerson == true end)
-            return fp
-        end
-
-        -- Kamera girişi hâlâ "sağ tık basılı" sanıyorsa: sahte sağ tık bırakma + kamera denetleyicisini sıfırla
-        local function resetCameraInput()
-            pcall(function()
-                local vim = game:GetService("VirtualInputManager")
-                local loc = UserInputService:GetMouseLocation()
-                vim:SendMouseButtonEvent(loc.X, loc.Y, 1, false, game, 0)
-            end)
-            pcall(function()
-                local c = getCams()
-                local ctl = c and c.activeCameraController
-                if ctl and ctl.Enable then
-                    ctl:Enable(false)
-                    ctl:Enable(true)
-                end
-            end)
-        end
-
-        -- ELLE ZORLA ÇÖZ (tuş): her şeyi sıfırlar
-        function SFX.mouseRescue()
-            task.spawn(function()
-                pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-                resetCameraInput()
-                task.wait(0.15)
-                local mb = UserInputService.MouseBehavior
-                if mb == Enum.MouseBehavior.LockCenter and robloxShiftLocked() == true then
-                    -- Roblox'un kendi shift-lock'u gerçekten açık: kilidi anahtarla kapat
-                    local c = getCams()
-                    local ctl = c and c.activeMouseLockController
-                    local okT = ctl and ctl.OnMouseLockToggled and pcall(function() ctl:OnMouseLockToggled() end)
-                    task.wait(0.15)
-                    pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-                    if okT and robloxShiftLocked() == false then
-                        pcall(notifyTop, "🔓 Shift-lock kapatıldı.", 2.5)
-                    else
-                        pcall(notifyTop, "🔓 Shift-lock hâlâ AÇIK görünüyor: kapatmak için Shift'e bas.", 4)
-                    end
-                elseif mb == Enum.MouseBehavior.LockCenter or mb == Enum.MouseBehavior.LockCurrentPosition then
-                    -- Kilit hemen geri geldiyse bir kez daha zorla bırak
-                    pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-                    resetCameraInput()
-                    pcall(notifyTop, "🔓 Fare kilidi çözüldü (zorla).", 2.5)
-                else
-                    pcall(notifyTop, "🔓 Fare kilidi çözüldü.", 2.5)
-                end
-            end)
-        end
-
-        bind(UserInputService.InputBegan, function(input)
-            if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-                lastShift = os.clock()
-                -- Basmadan önce fare ortada kilitliyse bu basış shift-lock'u KAPATIR (çıkış beklenir)
-                expectOff = (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
-                SFX.mouseBoost = math.max(SFX.mouseBoost or 0, os.clock() + 2.5)
-            end
-        end)
-
-        RunService:BindToRenderStep(RS_NAME, Enum.RenderPriority.Last.Value - 1, function()
-            if not alive then
-                pcall(function() RunService:UnbindFromRenderStep(RS_NAME) end)
-                return
-            end
-            if not ready or SFX.mouseFixOn == false then stuckT = nil return end
-            local lt = UserInputService:GetLastInputType()
-            if lt == Enum.UserInputType.Touch or string.find(lt.Name, "Gamepad", 1, true) then stuckT = nil return end
-            local cam = workspace.CurrentCamera
-            if not cam then stuckT = nil return end
-
-            local now = os.clock()
-            local mb = UserInputService.MouseBehavior
-
-            -- Önceki bırakmadan hemen sonra Roblox kilidi geri koyduysa: bu gerçek shift-lock / birinci şahıs.
-            if lcProbeAt then
-                if now - lcProbeAt < 0.25 then
-                    if mb == Enum.MouseBehavior.LockCenter then
-                        lcBackoff = now + 20
-                        lcProbeAt = nil
-                    end
-                else
-                    lcProbeAt = nil
-                end
-            end
-
-            if cam.CameraType == Enum.CameraType.Scriptable then stuckT = nil return end
-
-            local stuck, kind = false, nil
-            if mb == Enum.MouseBehavior.LockCurrentPosition then
-                stuck = not pressed(MB2) and not pressed(MB3)
-                kind = "LCP"
-            elseif mb == Enum.MouseBehavior.LockCenter and now >= lcBackoff then
-                local locked = robloxShiftLocked()
-                if not inFirstPerson(cam) then
-                    if locked ~= nil then
-                        -- Roblox "shift-lock kapalı" diyor ama fare ortada kilitli: Shift'e ne zaman basıldığına
-                        -- bakılmaksızın (görünmezlik, emote, oyun arayüzü vb. her sebepte) takılma sayılır
-                        stuck = (locked == false)
-                    elseif now - lastShift > 0.3 and now - lastShift < 8 then
-                        stuck = expectOff               -- bilgi yok: Shift'le çıkılması beklenmişti ama hâlâ kilitli
-                    end
-                end
-                kind = "LC"
-            end
-
-            if not stuck then
-                stuckT = nil
-                if now - lastFix > 3 then level = 0 end
-                return
-            end
-            stuckT = stuckT or now
-            local need = (now < (SFX.mouseBoost or 0)) and 0.1 or 0.3
-            if now - stuckT < need then return end
-
-            pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end)
-            level = (now - lastFix < 1.5) and (level + 1) or 1
-            lastFix = now
-            stuckT = nil
-            if kind == "LC" then
-                lcProbeAt = now
-                say("🔓 Fare kilidi serbest bırakıldı (shift-lock takılmıştı).")
-            else
-                say("🔓 Fare kilidi serbest bırakıldı (sağ tık takılmıştı).")
-                -- Kilit hemen geri geldiyse Roblox'un kamera girişi takılı demektir: girişi sıfırla
-                if level >= 2 then task.spawn(resetCameraInput) end
-            end
-        end)
     end
 
     ---------------------------------------------------------
@@ -17739,8 +17159,6 @@ end)()
             if SFX.invisToggle then SFX.invisToggle.Set(not SFX.invisOn) end
         elseif hotkeyMatches(input, Settings.MM2FlingKey, Settings.MM2FlingMouse) then
             flingHotkeyNow()
-        elseif hotkeyMatches(input, Settings.MM2UnlockKey, Settings.MM2UnlockMouse) then
-            if SFX.mouseRescue then SFX.mouseRescue() end
         elseif hotkeyMatches(input, Settings.MM2WallKey, Settings.MM2WallMouse) then
             SFX.wallShoot()
         elseif hotkeyMatches(input, Settings.MM2AimKey, Settings.MM2AimMouse) then
@@ -17817,8 +17235,6 @@ end)()
                     if SFX.invisToggle then SFX.invisToggle.Set(not SFX.invisOn) end
                 elseif Settings.MM2FlingMouse == M3 then
                     flingHotkeyNow()
-                elseif Settings.MM2UnlockMouse == M3 then
-                    if SFX.mouseRescue then SFX.mouseRescue() end
                 elseif Settings.MM2WallMouse == M3 then
                     SFX.wallShoot()
                 elseif Settings.MM2AimMouse == M3 then
@@ -21459,77 +20875,23 @@ do
         end)
     end
 
-    -- God Mode (ölümsüzlük; sadece reset atınca ölürsün)
+    -- God Mode (2 can): katil sana ilk saldırdığında / kestiğinde ölmezsin (saldırı boşa gider), 2. saldırıda ölürsün.
+    -- Canı istemciden doldurmak sunucudaki öldürmeyi engellemediği için kalkan, MM2 bölümündeki görünmezlik sistemiyle çalışır
+    -- (gerçek karakter saldırı anında kısa süre yerin altına alınır). Ayrıntı: "GOD MODE KALKANI" (MM2 > Genel kısmındaki blok).
     do
-        local StarterGui = game:GetService("StarterGui")
-        local godOn, bypass, hum = false, false, nil
-        local godConns = {}
-        local resetEvent = Instance.new("BindableEvent")
-
-        local function dropConns()
-            for _, c in ipairs(godConns) do pcall(function() c:Disconnect() end) end
-            godConns = {}
-        end
-        local function heal()
-            if godOn and not bypass and hum and hum.Parent and hum.Health < hum.MaxHealth then
-                pcall(function() hum.Health = hum.MaxHealth end)
-            end
-        end
-        local function attach(char)
-            dropConns()
-            local h = char and char:FindFirstChildOfClass("Humanoid")
-            if not h then return end
-            hum = h
-            pcall(function() h:SetStateEnabled(Enum.HumanoidStateType.Dead, false) end)
-            godConns[#godConns + 1] = h.HealthChanged:Connect(heal)
-            godConns[#godConns + 1] = h.StateChanged:Connect(function(_, new)
-                if godOn and not bypass and new == Enum.HumanoidStateType.Dead then
-                    pcall(function() h:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-                end
-            end)
-            heal()
-        end
-        local function disable()
-            godOn = false
-            dropConns()
-            if hum and hum.Parent then
-                pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
-            end
-            pcall(function() StarterGui:SetCore("ResetButtonCallback", true) end)
-        end
-
-        -- Reset tuşu: God Mode'u atlayıp karakteri gerçekten öldürür
-        bind(resetEvent.Event, function()
-            bypass = true
-            local char = LocalPlayer.Character
-            if hum and hum.Parent then
-                pcall(function() hum:SetStateEnabled(Enum.HumanoidStateType.Dead, true) end)
-                pcall(function() hum.Health = 0 end)
-            end
-            if char then pcall(function() char:BreakJoints() end) end
-        end)
-
-        bind(RunService.Heartbeat, heal)
-        bind(LocalPlayer.CharacterAdded, function(char)
-            bypass = false
-            if godOn then
-                task.wait(0.15)
-                attach(char)
-            end
-        end)
-
-        PX.toggle("🛡️  God Mode  (Ölümsüzlük — Sadece Reset ile Ölürsün)", function(v)
+        PX.toggle("🛡️  God Mode  (2 Can — 2. Vuruşta / Kesişte Ölürsün)", function(v)
+            Settings.GodShield = Settings.GodShield or {on = false}
+            Settings.GodShield.on = v and true or false
             if v then
-                godOn, bypass = true, false
-                attach(LocalPlayer.Character)
-                pcall(function() StarterGui:SetCore("ResetButtonCallback", resetEvent) end)
-                notify("God Mode", "Aktif! Ölmezsin; ölmek için Reset at.", 3)
+                if Settings.GodShield.reset then pcall(Settings.GodShield.reset) end
+                notify("God Mode", "Aktif! 2 canın var: katilin ilk saldırısı / kesişi boşa gider, 2. saldırıda ölürsün. (Şerif silahını sana doğrultunca da devreye girer.)", 5)
             else
-                disable()
                 notify("God Mode", "Kapatıldı.", 2)
             end
         end)
-        PX.onLock[#PX.onLock + 1] = disable
+        PX.onLock[#PX.onLock + 1] = function()
+            if Settings.GodShield then Settings.GodShield.on = false end
+        end
     end
 
     createSection(PremiumPage, "🌅  PREMİUM EKRAN & IŞIK")
