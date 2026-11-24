@@ -76,6 +76,16 @@ local Camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camer
 local GUI_NAME = "EZRAGOX_HUB"
 
 local alive = true
+
+-- FPS: Roblox'u açılışta mümkün olan en yüksek FPS'e aç (executor setfpscap / FFlag destekliyorsa).
+-- Kendi fonksiyonunda: ana bloğun local sınırına eklenmez.
+;(function()
+    if setfflag then
+        pcall(setfflag, "DFIntTaskSchedulerTargetFps", "9999")
+        pcall(setfflag, "FFlagTaskSchedulerLimitTargetFpsTo2402", "False")
+    end
+    if setfpscap then pcall(setfpscap, 9999) end
+end)()
 local conns = {}
 local shieldCleanup = nil -- Kalkan özelliği temizliği (closeAll içinde çağrılır)
 local skyCleanup = nil -- Gökyüzü özelliği temizliği (closeAll içinde çağrılır)
@@ -17852,6 +17862,21 @@ end)()
 
 local TrollPage = createTab("Troll", "ツ")
 local PremiumPage, PremiumTab = createTab("Premium", "")
+;(function()
+    if not setfpscap then return end
+    task.spawn(function()
+        while alive do
+            local cap = 9999
+            pcall(function()
+                local fx = Settings.FPSX
+                if fx and fx.level and fx.level >= 3 and tonumber(fx.cap) then cap = fx.cap end
+            end)
+            pcall(setfpscap, cap)
+            task.wait(4)
+        end
+    end)
+end)()
+
 local SettingsPage = createTab("Ayarlar", "")
 Settings.ChatPage = createTab("Sohbet", "💬")
 
@@ -20185,8 +20210,13 @@ do
         local doDist = espDistAcc >= 0.08
         if doDist then espDistAcc = 0 end
         local cam = doDist and workspace.CurrentCamera or nil
+        local doPaint = false
+        if anyRainbow then
+            local nowP = os.clock()
+            if nowP - (Settings.EspPaintT or 0) >= 0.025 then Settings.EspPaintT = nowP doPaint = true end
+        end
         for plr, d in pairs(espData) do
-            if anyRainbow then paint(d, t) end
+            if doPaint then paint(d, t) end
             if doDist then
                 local head = d.gui.Adornee
                 if cam and head and head.Parent then
@@ -24186,6 +24216,9 @@ end)()
         local rainbowOn, hl = false, nil
         bind(RunService.Heartbeat, function()
             if not rainbowOn then return end
+            local nowT = os.clock()
+            if nowT - (Settings.RbLast or 0) < 0.033 then return end   -- ~30 Hz yeter, renk akışı aynı görünür
+            Settings.RbLast = nowT
             local char = LocalPlayer.Character
             if not char then return end
             if not hl or hl.Parent ~= char then
