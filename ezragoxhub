@@ -348,6 +348,10 @@ local EN_TEXT = {
     ["👻  Görünmezlik (Karakterim Görünmez)"] = "👻 Invisibility (My Character Hidden)",
     ["👻  Görünmezlik (Herkesten Gizlen)"] = "👻 Invisibility (Hide From Everyone)",
     ["Görünmezlik Tuşu"] = "Invisibility Key",
+    ["🕶️  Otomatik Görünmezlik (Katil Yaklaşınca + Bıçak Gelince)"] = "🕶️  Auto Invisibility (Murderer Nearby + Incoming Knife)",
+    ["📏  Görünmezlik Tetik Mesafesi (Katil)"] = "📏  Invisibility Trigger Distance (Murderer)",
+    ["🛡️  Güvenli Mesafe (Görünmezlik Biter)"] = "🛡️  Safe Distance (Invisibility Ends)",
+    ["Otomatik görünmezlik aktif: katil yaklaşınca ya da bıçak sana doğru gelince görünmez olursun; katil uzaklaşınca / bıçak geçince ya da saplanınca görünür olursun."] = "Auto invisibility active: you turn invisible when the murderer gets close or a knife flies toward you, and visible again when the murderer is far away or the knife has passed or stuck.",
     ["🏷️  Script Kullanıcı Logosu (Aynı Scripti Kullananlar)"] = "🏷️ Script User Logo (Others Using This Script)",
     ["🖥️  Ekranı Yatay Genişlet (Geniş Ekran)"] = "🖥️ Expand Screen Horizontally (Widescreen)",
     ["OYUNCU ÇARPIŞMASI"] = "PLAYER COLLISION",
@@ -12812,12 +12816,214 @@ end)()
             end)
         end)
 
+        -- Dışarıdan (Otomatik Görünmezlik) kullanım için
+        SFX.ghostStart = function() return startGhost() end
+        SFX.ghostStop = function() stopGhost(false) end
+        SFX.ghostActive = function() return active end
+        SFX.ghostPos = function()
+            if active and gHrp and gHrp.Parent then return gHrp.Position end
+            return nil
+        end
+
         -- Script kapanınca karakter normale dönsün
         task.spawn(function()
             while alive do task.wait(1) end
             SFX.invisOn = false
             pcall(stopGhost, false)
         end)
+    end)()
+
+    -- OTOMATİK GÖRÜNMEZLİK (tek anahtar)
+    --  1) Katil sana "Tetik Mesafesi" kadar yaklaşınca görünmez olursun; katil "Güvenli Mesafe"den fazla uzaklaşınca (ya da ölünce)
+    --     görünmezlik biter.
+    --  2) Katil bıçak fırlatınca, bıçak sana doğru gelirken tam o sırada görünmez olursun (gerçek karakter yerin altına alınır,
+    --     bıçak ona değemez); bıçak geçince, bir yere saplanınca ya da kaybolunca görünmezlik hemen biter.
+    -- Elle açtığın görünmezliğe dokunmaz. Sen katilsen ya da ölüysen çalışmaz.
+    ;(function()
+        local AUTO_TOGGLE = "🕶️  Otomatik Görünmezlik (Katil Yaklaşınca + Bıçak Gelince)"
+        local nearDist, safeDist = 22, 45          -- sliderların varsayılanı ile aynı olmalı
+        local HIT_RADIUS = 7                       -- bıçağın hattı sana bu kadar yakından geçiyorsa tehdit sayılır (stud)
+        local KNIFE_MIN_SPEED = 8                  -- bundan yavaş giden / duran bıçak tehdit değildir (stud/sn)
+        local KNIFE_LEAD_EXTRA = 0.12              -- ping'e eklenen güvenlik payı (sn): bıçağın varışından bu kadar önce gizlenir
+        local KNIFE_CLOSE = 14                     -- bıçak hattında ve bu kadar yakınsa süreye bakmadan gizlen (stud)
+        local KNIFE_RELEASE_DELAY = 0.05           -- bıçak geçtikten / saplandıktan sonra görünmezliği bitirmeden önce bekleme (sn)
+        local KNIFE_MAX_HIDE = 3                   -- bıçak yüzünden en fazla bu kadar sn görünmez kal
+
+        SFX.autoInvisOn = savedOr(AUTO_TOGGLE, false)
+        local ownsGhost, mNeed, kNeed = false, false, false
+        local kStart, kRelAt, startTry = 0, nil, 0
+        local role, roleDead, roleAt = nil, false, 0
+        local mHrp, mAt = nil, 0
+        local knives = {}
+        local lastScan = 0
+
+        local function knifePart(inst)
+            if inst:IsA("BasePart") then return inst end
+            return inst.PrimaryPart or inst:FindFirstChildWhichIsA("BasePart", true)
+        end
+
+        local function trackKnife(inst)
+            if knives[inst] then return end
+            if not (inst:IsA("BasePart") or inst:IsA("Model")) then return end
+            if not string.find(string.lower(inst.Name), "knife", 1, true) then return end
+            if inst:IsA("Model") and inst:FindFirstChildOfClass("Humanoid") then return end
+            local part = knifePart(inst)
+            if not part then return end
+            knives[inst] = {part = part, hist = {}, moved = false, dead = false}
+        end
+
+        bind(workspace.ChildAdded, function(c) pcall(trackKnife, c) end)
+
+        -- Fırlatılan bıçakları değerlendirir: tehdit = bıçak hattı bana çarpacak ve varışına "lead" sn kaldı;
+        -- yaklaşıyor = hâlâ bana doğru geliyor (geçince / saplanınca false olur)
+        local function evalKnives(me, now, lead)
+            local threat, approaching = false, false
+            for inst, k in pairs(knives) do
+                local part = k.part
+                if not inst.Parent or not part.Parent then
+                    knives[inst] = nil
+                else
+                    local pos = part.Position
+                    if k.dead then
+                        -- saplanmış bıçak yeniden fırlatılırsa (konumu değişirse) tekrar izle
+                        if (pos - k.deadPos).Magnitude > 3 then k.dead, k.hist, k.moved = false, {}, false end
+                    else
+                        local h = k.hist
+                        h[#h + 1] = {t = now, p = pos}
+                        while #h > 2 and now - h[1].t > 0.15 do table.remove(h, 1) end
+                        local first = h[1]
+                        local span = now - first.t
+                        if span >= 0.04 then
+                            local v = (pos - first.p) / span
+                            local speed = v.Magnitude
+                            if speed >= KNIFE_MIN_SPEED then
+                                k.moved, k.slowAt = true, nil
+                                local dir = v / speed
+                                local toMe = me - pos
+                                local along = toMe:Dot(dir)
+                                local lateral = (toMe - dir * along).Magnitude
+                                if along > 0 and lateral <= HIT_RADIUS then
+                                    approaching = true
+                                    if along / speed <= lead or along <= KNIFE_CLOSE then threat = true end
+                                end
+                            elseif k.moved and speed < 3 then
+                                -- hareket ettikten sonra durdu = bir yere saplandı
+                                k.slowAt = k.slowAt or now
+                                if now - k.slowAt > 0.12 then k.dead, k.deadPos = true, pos end
+                            end
+                        end
+                    end
+                end
+            end
+            return threat, approaching
+        end
+
+        local function step()
+            local now = os.clock()
+            if SFX.invisOn then
+                -- elle açılan görünmezlik öncelikli: karışma
+                ownsGhost, mNeed, kNeed = false, false, false
+                return
+            end
+            if not SFX.autoInvisOn then
+                mNeed, kNeed = false, false
+                if ownsGhost then
+                    ownsGhost = false
+                    if SFX.ghostActive and SFX.ghostActive() then SFX.ghostStop() end
+                end
+                return
+            end
+            if not SFX.ghostStart then return end
+            if ownsGhost and not SFX.ghostActive() then ownsGhost = false end
+
+            if now - roleAt > 0.3 then roleAt = now; role, roleDead = myRole() end
+            local hum = myHum()
+            if not hum or hum.Health <= 0 or roleDead or role == "Murderer" then
+                mNeed, kNeed = false, false
+                if ownsGhost then
+                    ownsGhost = false
+                    if SFX.ghostActive() then SFX.ghostStop() end
+                end
+                return
+            end
+
+            local me = SFX.ghostPos()
+            if not me then
+                local hrp = myHRP()
+                me = hrp and hrp.Position
+            end
+            if not me then return end
+
+            -- 1) Katil yakınlığı (yaklaşınca aç, güvenli mesafeye uzaklaşınca kapat)
+            if now - mAt > 0.15 then
+                mAt = now
+                local m = findRole("Murderer", true)
+                mHrp = m and m.Character and m.Character:FindFirstChild("HumanoidRootPart") or nil
+            end
+            if mHrp and mHrp.Parent then
+                local d = (mHrp.Position - me).Magnitude
+                if not mNeed and d <= nearDist then
+                    mNeed = true
+                elseif mNeed and d >= math.max(safeDist, nearDist + 8) then
+                    mNeed = false
+                end
+            else
+                mNeed = false
+            end
+
+            -- 2) Fırlatılan bıçak
+            if now - lastScan > 0.3 then
+                lastScan = now
+                for _, c in ipairs(workspace:GetChildren()) do trackKnife(c) end
+            end
+            local threat, approaching = false, false
+            if next(knives) then
+                threat, approaching = evalKnives(me, now, getPingSeconds() + KNIFE_LEAD_EXTRA)
+            end
+            if not kNeed then
+                if threat then kNeed, kStart, kRelAt = true, now, nil end
+            else
+                if approaching then
+                    kRelAt = nil
+                else
+                    kRelAt = kRelAt or now
+                end
+                if (kRelAt and now - kRelAt >= KNIFE_RELEASE_DELAY) or now - kStart > KNIFE_MAX_HIDE then
+                    kNeed, kRelAt = false, nil
+                end
+            end
+
+            -- Karar: katil yakınında YA DA bıçak geliyorsa gizlen; ikisi de bittiyse görünür ol
+            if mNeed or kNeed then
+                if not SFX.ghostActive() and now - startTry > 0.1 then
+                    startTry = now
+                    if SFX.ghostStart() then ownsGhost = true end
+                end
+            elseif ownsGhost then
+                ownsGhost = false
+                SFX.ghostStop()
+            end
+        end
+
+        task.spawn(function()
+            while alive do
+                RunService.Heartbeat:Wait()
+                pcall(step)
+            end
+        end)
+
+        createToggle(MM2Page, AUTO_TOGGLE, SFX.autoInvisOn, function(v)
+            SFX.autoInvisOn = v
+            if v then
+                notify("Görünmezlik", "Otomatik görünmezlik aktif: katil yaklaşınca ya da bıçak sana doğru gelince görünmez olursun; katil uzaklaşınca / bıçak geçince ya da saplanınca görünür olursun.", 5)
+            end
+        end)
+        createSlider(MM2Page, "📏  Görünmezlik Tetik Mesafesi (Katil)", 8, 60, nearDist, function(v)
+            nearDist = v
+        end, " st")
+        createSlider(MM2Page, "🛡️  Güvenli Mesafe (Görünmezlik Biter)", 20, 120, safeDist, function(v)
+            safeDist = v
+        end, " st")
     end)()
 
     useMM2Category("GENEL")
