@@ -1,5 +1,5 @@
 --[[
-    EZRAGOX HUB  •  Türk Troll Scripti  •  v6.7 (FPS + Coin Farm Güncellemesi)
+    EZRAGOX HUB  •  Türk Troll Scripti  •  v6.8 (Akıcı Takip Motoru)
 ]]
 
 --[[
@@ -132,7 +132,7 @@ local Settings = {
     MM2FlingMouse = false,          -- MM2: fırlatma için fare tuşu (orta tık)
     MM2UnlockKey = Enum.KeyCode.N,  -- MM2: takılan fare kilidini zorla çöz tuşu
     MM2UnlockMouse = false,
-    MM2WallKey = Enum.KeyCode.Unknown, -- MM2: duvar arkası vuruş tuşu (varsayılan atanmamış)
+    MM2WallKey = Enum.KeyCode.Unknown, -- (ESKİ) ayrı duvar tuşu artık yok: Keskin Vuruş tuşu moda göre vurur
     MM2WallMouse = false,           -- MM2: duvar arkası vuruş için fare tuşu (orta tık)
     MM2AimKey = Enum.KeyCode.Unknown,  -- MM2: aimbot (katile kilitlen) aç/kapa tuşu (varsayılan atanmamış)
     MM2AimMouse = false,            -- MM2: aimbot için fare tuşu (orta tık)
@@ -240,8 +240,6 @@ local function loadConfig()
                 if data.MM2FlingKey and Enum.KeyCode[data.MM2FlingKey] then Settings.MM2FlingKey = Enum.KeyCode[data.MM2FlingKey] end
                 if data.MM2UnlockKey and Enum.KeyCode[data.MM2UnlockKey] then Settings.MM2UnlockKey = Enum.KeyCode[data.MM2UnlockKey] end
                 if data.MM2UnlockMouse and Enum.UserInputType[data.MM2UnlockMouse] then Settings.MM2UnlockMouse = Enum.UserInputType[data.MM2UnlockMouse] end
-                if data.MM2WallKey and Enum.KeyCode[data.MM2WallKey] then Settings.MM2WallKey = Enum.KeyCode[data.MM2WallKey] end
-                if data.MM2WallMouse and Enum.UserInputType[data.MM2WallMouse] then Settings.MM2WallMouse = Enum.UserInputType[data.MM2WallMouse] end
                 if data.MM2AimKey and Enum.KeyCode[data.MM2AimKey] then Settings.MM2AimKey = Enum.KeyCode[data.MM2AimKey] end
                 if data.MM2AimMouse and Enum.UserInputType[data.MM2AimMouse] then Settings.MM2AimMouse = Enum.UserInputType[data.MM2AimMouse] end
                 if data.MM2SnipeKey and Enum.KeyCode[data.MM2SnipeKey] then Settings.MM2SnipeKey = Enum.KeyCode[data.MM2SnipeKey] end
@@ -289,6 +287,9 @@ local EN_TEXT = {
     ["FLING  •  İSİM YAZ / TIKLA / DOKUN"] = "FLING • ENTER NAME / CLICK / TAP",
     ["MERMİ İZİ  •  VURUŞ EFEKTLERİ"] = "BULLET TRAIL • HIT EFFECTS",
     ["🔫  Keskin Vuruş Menüsü"] = "🔫 Sharp Shot Menu",
+    ["🔫  Keskin Vuruş Modu  (tek tuş • iki mod)"] = "🔫 Sharp Shot Mode  (one key • two modes)",
+    ["Normal"] = "Normal",
+    ["Duvar Arkası  👑"] = "Through Walls  👑",
     ["🌈  Mermi İzi  •  Vuruş Efektleri"] = "🌈 Bullet Trail • Hit Effects",
     ["↔️  Genişlik"] = "↔️ Width",
     ["↕️  Yazı Yüksekliği  (isim altına denk getir)"] = "↕️ Text Height (align below name)",
@@ -485,6 +486,7 @@ local EN_TEXT = {
     ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
     ["Şaka Bombası"]="Prank Bomb",
     ["🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"]="🎯  Long-Range Shot: Unavoidable Line  (Recommended)",
+    ["🌊  Akıcı Takip Motoru  (Yeni • Önerilen)"]="🌊  Smooth Tracking Engine  (New • Recommended)",
     ["Aktif! Şerifken katili vurduğun anda T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır. Iskalayınca ya da katilken atmaz."]="Active! As sheriff, the moment you hit the murderer, T is pressed, the prank bomb is found in whatever slot it is, equipped and clicked once. It does not fire on a miss or when you are the murderer.",
     ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
@@ -5455,6 +5457,28 @@ local FeaturesPage = createTab("Özellikler", "")
     -- derecede yüksek hızla çarptırmaktan gelir (Troll sekmesindeki fling ile
     -- aynı yöntem, istek üzerine gücü 1000 kat artırılmış hali).
     ---------------------------------------------------------
+    -- LOBİ / ÖLÜ DÜZELTMESİ: lobideyken (ya da ölüyken) karakterin çarpışma grubu haritadaki oyuncularla
+    -- çarpışmayabilir; fling "atılıyor ama kimse uçmuyor" olur. Fling süresince kendi karakterinin
+    -- parçalarını hedefin çarpışma grubuna alır, bitince eski gruba geri döndürür (geri alıcı fonksiyon döner).
+    Settings.SyncCollisionGroup = function(char, targetPart)
+        local saved = {}
+        pcall(function()
+            local grp = targetPart.CollisionGroup
+            for _, p in ipairs(char:GetDescendants()) do
+                if p:IsA("BasePart") and p.CollisionGroup ~= grp then
+                    saved[p] = p.CollisionGroup
+                    p.CollisionGroup = grp
+                end
+            end
+        end)
+        return function()
+            for p, g in pairs(saved) do
+                pcall(function() if p.Parent then p.CollisionGroup = g end end)
+            end
+            saved = {}
+        end
+    end
+
     local mm2FlingBusy = false
     local flingOldPos = nil -- YARHM'deki getgenv().OldPos ile birebir aynı rol: kendi karakterinin fling öncesi konumu
     -- YARHM'in "SkidFling" fonksiyonunun BİREBİR portu: aynı sabitler (9e7, 9e7*10, 9e8...),
@@ -5477,6 +5501,7 @@ local FeaturesPage = createTab("Özellikler", "")
         end
 
         mm2FlingBusy = true
+        local restoreCG = nil   -- çarpışma grubu geri alıcı (SFBasePart içinde atanır)
         if not retryMode then
             -- Güvenlik ağı (sadece elle atılan fling): bir şey ters giderse en geç 25 sn sonra
             -- meşgul bayrağını / düşme yüksekliğini / kamerayı / hızı kesin olarak normale döndürür.
@@ -5488,6 +5513,7 @@ local FeaturesPage = createTab("Özellikler", "")
                 if mm2FlingBusy then
                     mm2FlingBusy = false
                     pcall(function() workspace.FallenPartsDestroyHeight = fpdh0 end)
+                    if restoreCG then pcall(restoreCG) restoreCG = nil end
                     pcall(function()
                         local ch = LocalPlayer.Character
                         local hm = ch and ch:FindFirstChildOfClass("Humanoid")
@@ -5517,6 +5543,15 @@ local FeaturesPage = createTab("Özellikler", "")
                 local MAX_ATTEMPTS = retryMode and 3 or 1   -- elle atılan fling: 1 deneme • farm: 3 deneme
                 local attempt = 0
                 local targetDied = false
+
+                -- Hedef uzaktaysa (lobiden haritaya fling) parçaları yüklensin: akış açıksa hedefin çevresini iste
+                if workspace.StreamingEnabled then
+                    pcall(function()
+                        local tr0 = TCharacter:FindFirstChild("HumanoidRootPart")
+                        if tr0 then LocalPlayer:RequestStreamAroundAsync(tr0.Position, 1.2) end
+                    end)
+                    TCharacter = TargetPlayer.Character or TCharacter
+                end
 
                 repeat
                     attempt = attempt + 1
@@ -5563,19 +5598,17 @@ local FeaturesPage = createTab("Özellikler", "")
                     end
 
                     local FPos = function(BasePart, Pos, Ang)
-                        if killMode then
-                            -- ÖLDÜRME MODU: hep hedefin ÜSTÜNDEN çarp ve hızı AŞAĞI ver: hedef yukarı/yana uçup
-                            -- havada kalmak yerine haritanın altındaki boşluğa (düşme yüksekliğinin altına) gider ve ölür.
-                            Pos = CFrame.new(Pos.X, math.abs(Pos.Y) + 0.5, Pos.Z)
-                        end
+                        -- DİKEY FLING: hedefin tam ÜSTÜNDEN çarp. Yana kayma yok: sabit ±2.25 payları kaldırıldı,
+                        -- hareket eden hedef için ileri bakma payı en fazla 4 stud. Hız yalnızca Y ekseninde (aşağı),
+                        -- dönme hızı sıfır → hedef sadece dikey gider, yanındaki oyuncular savrulmaz.
+                        local hx, hz = Pos.X, Pos.Z
+                        local hm = math.sqrt(hx * hx + hz * hz)
+                        if hm > 4 then hx, hz = hx / hm * 4, hz / hm * 4 end
+                        Pos = CFrame.new(hx, math.abs(Pos.Y) + 0.5, hz)
                         RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
                         Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
-                        if killMode then
-                            RootPart.Velocity = Vector3.new(9e5, -9e9, 9e5)
-                        else
-                            RootPart.Velocity = Vector3.new(9e7, 9e7 * 10, 9e7)
-                        end
-                        RootPart.RotVelocity = Vector3.new(9e8, 9e8, 9e8)
+                        RootPart.Velocity = Vector3.new(0, -9e9, 0)
+                        RootPart.RotVelocity = Vector3.zero
                     end
 
                     local SFBasePart = function(BasePart)
@@ -5583,6 +5616,9 @@ local FeaturesPage = createTab("Özellikler", "")
                         local Time = tick()
                         local Angle = 0
                         local startY = BasePart.Position.Y
+                        -- lobi / ölü: çarpışma grubunu hedefle eşitle (fling bitince geri alınır)
+                        if restoreCG then pcall(restoreCG) restoreCG = nil end
+                        restoreCG = Settings.SyncCollisionGroup(Character, BasePart)
 
                         repeat
                             if RootPart and THumanoid then
@@ -5595,10 +5631,10 @@ local FeaturesPage = createTab("Özellikler", "")
                                     FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
 
-                                    FPos(BasePart, CFrame.new(2.25, 1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
 
-                                    FPos(BasePart, CFrame.new(-2.25, -1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
 
                                     FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
@@ -5607,10 +5643,10 @@ local FeaturesPage = createTab("Özellikler", "")
                                     FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
 
-                                    FPos(BasePart, CFrame.new(2.25, 1.5, 2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
 
-                                    FPos(BasePart, CFrame.new(-2.25, -1.5, -2.25) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
+                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
                                     task.wait()
                                 else
                                     FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
@@ -5662,7 +5698,7 @@ local FeaturesPage = createTab("Özellikler", "")
                     local BV = Instance.new("BodyVelocity")
                     BV.Name = "EZRAGOX_FlingVel"
                     BV.Parent = RootPart
-                    BV.Velocity = Vector3.new(9e8, 9e8, 9e8)
+                    BV.Velocity = Vector3.new(0, -9e8, 0)   -- yalnızca dikey (aşağı): yana itme yok
                     BV.MaxForce = Vector3.new(1 / 0, 1 / 0, 1 / 0)
 
                     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
@@ -5684,6 +5720,7 @@ local FeaturesPage = createTab("Özellikler", "")
                     end
 
                     BV:Destroy()
+                    if restoreCG then pcall(restoreCG) restoreCG = nil end
                     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
                     if killMode and THumanoid then
                         -- kendimi hemen eski yerime al, hedefin düşüp ölmesini buradan izle (en fazla 3 sn)
@@ -5714,6 +5751,7 @@ local FeaturesPage = createTab("Özellikler", "")
                         or (not retryMode and (os.clock() - backT > 3 or not RootPart.Parent or Humanoid.Health <= 0))   -- elle atılan fling: ölürsen / 3 sn geçerse döngüde takılma
                     workspace.FallenPartsDestroyHeight = oldFallenHeight
                 until targetDied or attempt >= MAX_ATTEMPTS
+                if restoreCG then pcall(restoreCG) restoreCG = nil end
 
                 mm2FlingBusy = false
                 if killMode and not targetDied then
@@ -7200,23 +7238,37 @@ end)()
         return bestPart, bestHum
     end
 
-    -- Nişan noktası: hedefin MERMİ ULAŞTIĞINDA bulunacağı yer.
-    -- Takip tepkisi: son 0.09 sn ağırlıklı; yön değişiminde eski hız tahmini daha hızlı bastırılır.
-    --  • Hız, hedefin son ~0.2 sn'lik gerçek konum geçmişinden ölçülür (uzak oyuncularda
-    --    AssemblyLinearVelocity titrek / gecikmeli olabildiği için bununla harmanlanır).
-    --  • Öngörü süresi = ping + küçük arayüz/interpolasyon payı; "Nişan Öngörüsü" kaydırıcısıyla ayarlanır.
-    --  • Havadaysa yerçekimi de hesaba katılır; yerdeyken dikey hız yok sayılır.
-    --  • Hedef durmuşsa (ya da neredeyse) öngörü eklenmez → duran hedefi asla ıskalamaz.
-    --  • Yatay öngörü mesafesi sınırlıdır (ani yön değiştirince aşırı ileri nişan almasın).
+    -- ===================================================================================
+    -- AKICI TAKİP MOTORU (v6.8)
+    -- Nişan noktası: hedefin MERMİ SUNUCUYA ULAŞTIĞINDA bulunacağı yer.
+    --  • Hız: son ~0.2 sn'lik gerçek konum geçmişinden, yeni örneklere ağırlık veren doğrusal regresyonla ölçülür
+    --    (hızlı + yavaş iki pencere); ağdan gelen hız ancak konum geçmişiyle tutarlıysa harmanlanır.
+    --  • Öngörülebilirlik (alfa): hedefin son 0.5 sn'deki hareketi "aynı yönde devam" varsayımıyla geriye dönük
+    --    sınanır. Düz koşanda alfa ≈ 1, sağ-sol sekende ≈ 0 → öngörü kendiliğinden kısalır (el ile eşik yok).
+    --  • Dikey: yerdeyken sabit; havadayken yerçekimi + yere iniş sınırı (zeminin altına nişan almaz).
+    --  • Kendi hareketim: "Uzaktan Vuruş / Kaçılamaz Hat" mermisi katilin yanından çıktığı için senin hızın
+    --    hatın hesabına KARIŞMAZ (yalnızca silahtan çıkan nokta atışlarda kullanılır).
+    --  • Kaçılamaz hat: katilin olası konumlarının (geçmiş + öngörü + "devam eder" + "geri döner") ana ekseni
+    --    (3 boyutlu PCA) bulunur; hat bu eksen boyunca, tüm olası konumları kapsayacak uzunlukta çekilir.
+    --  SFX.engineOn = false → eski (basit) model.
+    -- ===================================================================================
     SFX.leadMul = 1
     SFX.autoMul, SFX.shots, SFX.hits, SFX.smartOn = 1, 0, 0, true   -- otomatik kalibrasyon çarpanı, atış / isabet sayacı, akıllı zamanlama
     SFX.hist = setmetatable({}, {__mode = "k"})
+    SFX.estCache = setmetatable({}, {__mode = "k"})
+    SFX.engineOn = true      -- yeni motor açık
+    SFX.viewLag = 0.07       -- ekranda görünen konum ile sunucudaki konum arasındaki sabit pay (interpolasyon) (sn)
+    SFX.sweepReach = 1.0     -- hat uzunluğu çarpanı: katilin öngörü süresinde alabileceği yol (yürüme hızı × süre × 0.8 × bu)
+    SFX.jumpBias = 1.2       -- hattı yukarı kaydırma payı (stud); zıplama ihtimalinde gövdenin üst kısmından geçsin
+    SFX.jumpReach = 5        -- dikey eksende hat yarı uzunluğu (stud)
     local function recordPos(part)
         local h = SFX.hist[part]
         if not h then h = {} SFX.hist[part] = h end
         local now = os.clock()
+        local last = h[#h]
+        if last and now >= last.t and now - last.t < 0.004 then return end   -- aynı karede ikinci örnek alma
         h[#h + 1] = {t = now, p = part.Position}
-        while #h > 0 and now - h[1].t > 0.45 do table.remove(h, 1) end
+        while #h > 0 and (now - h[1].t > 0.8 or h[1].t > now) do table.remove(h, 1) end
     end
     bind(RunService.Heartbeat, function()
         for _, pl in ipairs(Players:GetPlayers()) do
@@ -7256,17 +7308,231 @@ end)()
         return (a.p - b.p) / dt
     end
 
-    -- Mermi hedefe ulaştığında hedefin bulunacağı nokta:
-    --  • iki zaman penceresinden (son 0.12 sn ve 0.12-0.3 sn) hız ölçülür; ani yön değiştirme
-    --    (sağa-sola kaçma) algılanırsa öngörü azaltılır, durmaya başlayan hedefe fazla önde nişan alınmaz.
-    --  • öngörü süresi = ping + arayüz payı + mesafeye bağlı mermi süresi.
-    --  • havadaysa yerçekimi hesaba katılır.
-    local function aimPoint(part, hum)
+    -- Yumuşatılmış ping: sıçramada hızlı yükselir, düşüşte yavaş iner (öngörü ani kısalıp uzamasın)
+    function SFX.pingNow()
+        local now = os.clock()
+        local dt = now - (SFX.pingT or -1e9)
+        if dt < 0 or dt > 0.12 or not SFX.pingS then
+            local p = getPingSeconds()
+            local s = SFX.pingS
+            if not s or dt < 0 or dt > 3 then s = p else s = s + (p - s) * ((p > s) and 0.6 or 0.25) end
+            SFX.pingS, SFX.pingT = s, now
+        end
+        return SFX.pingS
+    end
+
+    -- Üstel ağırlıklı doğrusal regresyon: konum-zaman doğrusunun eğimi = hız (yeni örnekler daha ağır basar)
+    function SFX.fitVel(h, now, tau, maxAge)
+        local n = #h
+        if n < 3 then return nil end
+        local p0 = h[n].p
+        local sw, swx, swxx = 0, 0, 0
+        local spx, spy, spz, sqx, sqy, sqz = 0, 0, 0, 0, 0, 0
+        local used = 0
+        for i = n, 1, -1 do
+            local s = h[i]
+            local age = now - s.t
+            if age > maxAge then break end
+            if age < 0 then age = 0 end
+            local x = -age
+            local w = math.exp(-age / tau)
+            local px, py, pz = s.p.X - p0.X, s.p.Y - p0.Y, s.p.Z - p0.Z
+            sw = sw + w
+            swx = swx + w * x
+            swxx = swxx + w * x * x
+            spx = spx + w * px
+            spy = spy + w * py
+            spz = spz + w * pz
+            sqx = sqx + w * x * px
+            sqy = sqy + w * x * py
+            sqz = sqz + w * x * pz
+            used = used + 1
+        end
+        if used < 3 then return nil end
+        local den = sw * swxx - swx * swx
+        if den < 1e-7 then return nil end
+        return Vector3.new((sw * sqx - swx * spx) / den, (sw * sqy - swx * spy) / den, (sw * sqz - swx * spz) / den)
+    end
+
+    SFX.atan2 = math.atan2 or function(y, x) return math.atan(y, x) end
+
+    -- i. örnekteki yatay hız (önceki w sn'den) ve dönüş hızı omega (rad/sn, + = saat yönünün tersi); veri yoksa nil
+    function SFX.motionAt(h, i, w)
+        local si = h[i]
+        local k1 = i - 1
+        while k1 >= 1 and si.t - h[k1].t < w do k1 = k1 - 1 end
+        if k1 < 1 then return nil end
+        local k2 = k1 - 1
+        while k2 >= 1 and h[k1].t - h[k2].t < w do k2 = k2 - 1 end
+        if k2 < 1 then return nil end
+        local s1, s2 = h[k1], h[k2]
+        local d1, d2 = si.t - s1.t, s1.t - s2.t
+        local v1x, v1z = (si.p.X - s1.p.X) / d1, (si.p.Z - s1.p.Z) / d1
+        local v2x, v2z = (s1.p.X - s2.p.X) / d2, (s1.p.Z - s2.p.Z) / d2
+        local omega = 0
+        if (v1x * v1x + v1z * v1z) > 16 and (v2x * v2x + v2z * v2z) > 16 then
+            omega = SFX.atan2(v2x * v1z - v2z * v1x, v2x * v1x + v2z * v1z) / ((d1 + d2) * 0.5)
+        end
+        return v1x, v1z, omega
+    end
+
+    -- Düz gidiş + dönerek gidiş modellerinin geçmişte ne kadar tuttuğunu ölçer (en küçük kareler, hafif ön bilgili):
+    -- gerçek yer değiştirme ≈ a × (düz tahmin) + b × (dönüş düzeltmesi). Döner: a, b
+    --   düz koşan: a≈1 • sağ-sol seken / rastgele dönen: a→0 • sabit yayda dönen: a≈1, b≈1
+    function SFX.fitModel(h, now, horizon)
+        local n = #h
+        if n < 8 then return 1, 0.6 end
+        local H = math.clamp(horizon, 0.08, 0.3)
+        local s11, s12, s22, b1, b2 = 0, 0, 0, 0, 0
+        for i = n, 1, -1 do
+            local si = h[i]
+            if now - si.t > 0.62 then break end
+            if now - si.t >= H + 0.02 then
+                local j = i + 1
+                while j <= n and h[j].t - si.t < H do j = j + 1 end
+                if j <= n then
+                    local vx, vz, om = SFX.motionAt(h, i, 0.1)
+                    if vx then
+                        local dt = h[j].t - si.t
+                        om = math.clamp(om, -6, 6)
+                        local rx, rz = vx * dt, vz * dt
+                        local cx, cz = rx, rz
+                        if math.abs(om * dt) > 1e-3 then
+                            local sn, cs = math.sin(om * dt) / om, (1 - math.cos(om * dt)) / om
+                            cx, cz = vx * sn - vz * cs, vz * sn + vx * cs
+                        end
+                        local qx, qz = cx - rx, cz - rz
+                        local dx, dz = h[j].p.X - si.p.X, h[j].p.Z - si.p.Z
+                        s11 = s11 + rx * rx + rz * rz
+                        s12 = s12 + rx * qx + rz * qz
+                        s22 = s22 + qx * qx + qz * qz
+                        b1 = b1 + dx * rx + dz * rz
+                        b2 = b2 + dx * qx + dz * qz
+                    end
+                end
+            end
+        end
+        local l1, l2, a0, b0 = 1.2, 1.2, 1.0, 0.6
+        s11, s22, b1, b2 = s11 + l1, s22 + l2, b1 + l1 * a0, b2 + l2 * b0
+        local det = s11 * s22 - s12 * s12
+        if det < 1e-9 then return 1, 0.6 end
+        return math.clamp((b1 * s22 - b2 * s12) / det, 0, 1.1), math.clamp((s11 * b2 - s12 * b1) / det, -0.2, 1.3)
+    end
+
+    -- Hedef durumu: konum, hız, öngörülebilirlik, yerde mi? (kare başına bir kez hesaplanır)
+    function SFX.estimate(part, hum)
+        local now = os.clock()
+        local c = SFX.estCache[part]
+        if c and now >= c.now and now - c.now < 0.004 then return c end
+        local h = SFX.hist[part]
+        local p = part.Position
+        local va = part.AssemblyLinearVelocity
+        local E = {now = now, p = p, v = va, alpha = 1}
+        if h and #h >= 3 then
+            local vf = SFX.fitVel(h, now, 0.05, 0.22)
+            local vs = SFX.fitVel(h, now, 0.14, 0.45)
+            local v = vf or vs
+            if vf and vs then
+                -- Hızlar yakınsa gürültüyü azaltmak için yavaş pencereyle harmanla; yön değişiyorsa hızlıya güven
+                local df = (vf - vs).Magnitude
+                local k = math.clamp(1 - df / (vf.Magnitude + 3), 0, 1) * 0.35
+                v = vf * (1 - k) + vs * k
+            end
+            if v then
+                -- Ağdan gelen hız yalnızca konum geçmişiyle tutarlıysa karışır
+                local vh = Vector3.new(v.X, 0, v.Z)
+                local ah = Vector3.new(va.X, 0, va.Z)
+                if (ah - vh).Magnitude < 0.45 * vh.Magnitude + 3 then v = v * 0.75 + va * 0.25 end
+                E.v = v
+            end
+        end
+        -- Hız sınırı: yürüme hızının biraz üstü (ışınlanma / fling sıçramaları nişanı bozmasın)
+        local ws = (hum and tonumber(hum.WalkSpeed)) or 16
+        local vmax = math.max(ws, 16) * 1.3 + 2
+        local vh = Vector3.new(E.v.X, 0, E.v.Z)
+        if vh.Magnitude > vmax then E.v = E.v * (vmax / vh.Magnitude) end
+        SFX.estCache[part] = E
+        return E
+    end
+
+    -- Zemin: hedefin altındaki yüzeye uzaklık (stud) ya da nil
+    function SFX.groundBelow(p)
+        local rp = SFX.groundRP
+        if not rp or os.clock() - (SFX.groundRPt or 0) > 1 then
+            rp = RaycastParams.new()
+            rp.FilterType = Enum.RaycastFilterType.Exclude
+            rp.IgnoreWater = true
+            pcall(function() rp.RespectCanCollide = true end)
+            rp.FilterDescendantsInstances = charsList()
+            SFX.groundRP, SFX.groundRPt = rp, os.clock()
+        end
+        local ok, hit = pcall(function() return workspace:Raycast(p, Vector3.new(0, -80, 0), rp) end)
+        if ok and hit then return p.Y - hit.Position.Y end
+        return nil
+    end
+
+    -- Modelin tt sn sonraki yer değiştirmesi (konumdan fark): yatay = a × düz + b × dönüş düzeltmesi, dikey = balistik
+    function SFX.pathAt(E, tt)
+        local vx, vz = E.vx, E.vz
+        local dcx, dcz = vx * tt, vz * tt
+        local dx, dz = dcx, dcz
+        local om = E.omega
+        if math.abs(om * tt) > 1e-3 then
+            local sn, cs = math.sin(om * tt) / om, (1 - math.cos(om * tt)) / om
+            dx, dz = vx * sn - vz * cs, vz * sn + vx * cs
+        end
+        local a, b = E.alpha, E.beta
+        local ox, oz = a * dcx + b * (dx - dcx), a * dcz + b * (dz - dcz)
+        local dy = 0
+        if E.airborne then
+            dy = E.vy * tt - 0.5 * workspace.Gravity * tt * tt
+            if E.floorY and E.p.Y + dy < E.floorY then dy = E.floorY - E.p.Y end
+            dy = math.clamp(dy, -14, 14)
+        end
+        return Vector3.new(ox, dy, oz)
+    end
+
+    -- Mermi sunucuya ulaştığında hedefin bulunacağı nokta (kendi hareketim KARIŞMAZ). withTravel: silahtan çıkan
+    -- nokta atışlarda mesafeye bağlı küçük mermi süresi eklenir.
+    function SFX.predict(part, hum, withTravel)
+        local E = SFX.estimate(part, hum)
+        local p, v = E.p, E.v
+        local t = (SFX.pingNow() + (SFX.viewLag or 0.07)) * (SFX.leadMul or 1) * (SFX.autoMul or 1)
+        if withTravel then
+            local me = myHRP()
+            if me then t = t + (p - me.Position).Magnitude / 1100 end
+        end
+        E.t = t
+        local h = SFX.hist[part]
+        local a, b, om = 1, 0.6, 0
+        if h and #h >= 8 and SFX.smartOn ~= false then
+            a, b = SFX.fitModel(h, E.now, t)
+            local _, _, o2 = SFX.motionAt(h, #h, 0.1)
+            om = math.clamp(o2 or 0, -6, 6)
+        end
+        E.alpha, E.beta, E.omega = a, b, om
+        local flat = Vector3.new(v.X, 0, v.Z)
+        if flat.Magnitude < 1.2 then flat = Vector3.zero end
+        E.flat, E.vx, E.vz, E.vy = flat, flat.X, flat.Z, v.Y
+        -- Dikey: yerde mi, havada mı? (zemine ışın + dikey hız)
+        local hip = ((hum and tonumber(hum.HipHeight)) or 2) + 1
+        local gd = SFX.groundBelow(p)
+        local airborne
+        if gd then airborne = gd > hip + 0.6 or v.Y > 10 or v.Y < -14
+        else airborne = hum and hum.FloorMaterial == Enum.Material.Air end
+        E.airborne = airborne and true or false
+        E.floorY = gd and (p.Y - gd + hip) or nil
+        local off = SFX.pathAt(E, t)
+        E.lead = off
+        SFX.lastFlat, SFX.lastLead = flat, 0   -- 0: eski otomatik kalibrasyon bu motorla çakışmasın
+        return p + off, E
+    end
+
+    -- Silahtan çıkan nokta atışı için nişan noktası: öngörü + kendi hareketimin ping/2'lik kaydırması
+    function SFX.legacyAim(part, hum)
         local grounded = hum.FloorMaterial ~= Enum.Material.Air
         local va = part.AssemblyLinearVelocity
         local h = SFX.hist[part]
-        -- En yeni örnekleri önceliklendir: hedef aniden sağa/sola kırdığında eski yön
-        -- tahmini yeni atışı sürüklemesin. vr = son 0.09 sn, vo = önceki pencere.
         local vr, vo = velBetween(h, 0, 0.09), velBetween(h, 0.09, 0.22)
         local v = vr or va
         local turning = false
@@ -7277,7 +7543,6 @@ end)()
                 local d = fr.Unit:Dot(fo.Unit)
                 turning = d < 0.35
                 if turning then
-                    -- Yön değişiminde eski hızın etkisini kes; güncel hız ve fiziksel hız önde.
                     v = vr * 0.85 + va * 0.15
                     damp = 0.55
                 else
@@ -7287,7 +7552,7 @@ end)()
                 v = vr * 0.8 + va * 0.2
             end
             if fr.Magnitude < fo.Magnitude * 0.65 then
-                v = vr * 0.85 + va * 0.15 -- yavaşlama / durma: eski hıza göre öne nişan alma
+                v = vr * 0.85 + va * 0.15
             end
         elseif vr then
             v = vr * 0.8 + va * 0.2
@@ -7297,7 +7562,6 @@ end)()
         local me = myHRP()
         local dist = me and (part.Position - me.Position).Magnitude or 0
         local t = (getPingSeconds() + 0.07 + dist / 1100) * (SFX.leadMul or 1) * (SFX.autoMul or 1)
-        -- Ani yön değişiminde uzun öngörü yerine güncel konuma yakın, kısa tahmin kullan.
         if turning and SFX.smartOn then t = t * 0.55 end
         local lead = flat * t * damp
         local maxLead = turning and 9 or 16
@@ -7309,13 +7573,24 @@ end)()
             dy = math.clamp(dy, -8, 8)
         end
         local aim = part.Position + lead + Vector3.new(0, dy, 0)
-        -- Kendi hareketim: koşarken sunucudaki konumum istemcideki konumumdan ping/2 kadar farklı olabilir.
-        -- "Kendi Hareketim Payı" kaydırıcısı (varsayılan %100) nişan noktasını, kendi yatay hızımın
-        -- bu gecikme süresindeki yer değiştirmesi kadar ters yöne kaydırır.
         local ownK = SFX.ownMul or 1
         if ownK > 0 and me then
             local mv = me.AssemblyLinearVelocity
             aim = aim - Vector3.new(mv.X, 0, mv.Z) * (getPingSeconds() * 0.5) * ownK
+        end
+        return aim
+    end
+
+    local function aimPoint(part, hum)
+        if SFX.engineOn == false then return SFX.legacyAim(part, hum) end
+        local aim = SFX.predict(part, hum, true)
+        -- Kendi hareketim: koşarken sunucudaki konumum istemcideki konumumdan ping/2 kadar farklı olabilir.
+        -- "Kendi Hareketim Payı" (varsayılan %100) nişan noktasını bu gecikmedeki yer değiştirmem kadar ters yöne kaydırır.
+        local ownK = SFX.ownMul or 1
+        local me = myHRP()
+        if ownK > 0 and me then
+            local mv = me.AssemblyLinearVelocity
+            aim = aim - Vector3.new(mv.X, 0, mv.Z) * (SFX.pingNow() * 0.5) * ownK
         end
         return aim
     end
@@ -7422,6 +7697,8 @@ end)()
             pcall(notifyTop, "👑 Katilin yanına ışınlanıp vurma PREMİUM özelliktir; premium aktif değil, normal atış yapılıyor.", 5)
         end
         forceWall = (forceWall == true) and Settings.PremiumActive and true or false
+        -- Duvar Arkası modu = Oto Farm bitişindeki "katile sıkma" mantığı (havada asılı kalma YOK, olduğun yerde sıkar)
+        local wallMode = forceWall or (wallOn and Settings.PremiumActive) or false
         if os.clock() - lastShot < 0.35 then return end
         -- Silah çantandaysa da çalışır: ateşten önce silah otomatik ele alınır (fireGunAt içinde).
         -- Silah hiç yoksa (Sheriff / kahraman değilsin) uyarı verilir.
@@ -7450,7 +7727,7 @@ end)()
             if not SFX.targetVisible(originPos, part, aimPoint(part, hum)) then
                 if os.clock() - lastLosWarn > 2.5 then
                     lastLosWarn = os.clock()
-                    pcall(notifyTop, "🧱 Hedef duvar arkasında, görmeden vuramazsın. (Premium: Duvar Arkası Vuruş'u aç)", 3)
+                    pcall(notifyTop, "🧱 Hedef duvar arkasında, görmeden vuramazsın. (Premium: Keskin Vuruş Modu'nu Duvar Arkası yap)", 3)
                 end
                 return
             end
@@ -7467,21 +7744,17 @@ end)()
                 local tracked = false
                 -- Bekleyerek hedefin yeni yönünü kaçırma: atış hemen yapılır; fireGunAt
                 -- nişan noktasını remote gönderiminden hemen önce yeniden hesaplar.
-                for _ = 1, 6 do
+                for _ = 1, (wallMode and 1 or 6) do
                     if not alive or my ~= shotToken then return end
                     if not (part.Parent and hum.Parent and hum.Health > 0) then return end -- hedef öldü
                     local fired
-                    -- Duvar modunda hedef görünmüyorsa: kısa süre görüş hattı olan bir noktaya ışınlan, ateş et, geri dön
-                    if (forceWall or (wallOn and Settings.PremiumActive)) and SFX.peekOn then
-                        local okP, resP = pcall(SFX.peekFire, part, hum)
-                        if okP and resP ~= nil then
-                            fired = resP
-                        elseif SFX.peekWhy then
-                            SFX.peekWhyAt = os.clock()
-                            pcall(notifyTop, "🧱 Işınlanıp vurulamadı (" .. SFX.peekWhy .. "): normal atış yapılıyor.", 4)
-                        end
+                    -- Duvar Arkası modu: mermi direkt katilin gövdesinin içinden çıkar (SFX.insideShoot); duvar / mesafe önemsiz.
+                    -- Havada asılı kalma / ışınlanma yok: karakter olduğu yerde durur.
+                    if wallMode then
+                        local okA, resA = pcall(SFX.insideShoot, part, hum)
+                        if okA and resA ~= nil then fired = resA end
                     end
-                    if fired == nil then
+                    if not fired and not wallMode then
                         local lineO
                         local _, fired2 = pcall(fireGunAt, function()
                             local pos
@@ -7516,7 +7789,7 @@ end)()
                     end
                     -- Varsayılan: BİR basış = BİR atış (kendi kendine tekrar ateş etmez).
                     -- "Iskalarsa Otomatik Tekrar Vur" açıksa sonucu bekleyip gerekirse yeniden vurur.
-                    if onceOnly or not SFX.retryOn then return end
+                    if onceOnly or wallMode or not SFX.retryOn then return end   -- Duvar Arkası: tuşa her basışta TEK atış
                     local waitT = 0.6 + getPingSeconds()
                     local t0 = os.clock()
                     while os.clock() - t0 < waitT do
@@ -7668,20 +7941,9 @@ end)()
     -- HAVADAN VURUŞ (ışınlanmadan): mermi silahtan değil, katilin hemen yanındaki bir noktadan çıkar;
     -- araya duvar/engel girmez. Karakter olduğu yerde kalır. Sunucu çıkış noktasını doğruluyorsa işe yaramaz;
     -- nil = yapılamadı, true/false = ateş edildi.
-    -- UZAKTAN KESİN İSABET ("kaçılamaz hat"): ileri-geri sekme / zıplama / ani yön değiştirme.
-    -- Tek bir nokta yerine, katilin ŞU ANKİ konumundan ÖNGÖRÜLEN konumuna uzanan (iki uca da
-    -- SFX.sweepMargin stud pay eklenmiş) bir hat boyunca ateş edilir: mermi çıkış noktası hattın bir ucundan
-    -- (katilin hemen yakınından, silahtan değil), hedef noktası öbür ucundan verilir. Katil bu hattın
-    -- üzerinde nerede olursa olsun (öne / arkaya / yukarı sekse bile) mermi gövdesinden geçer.
-    --  • Hat payı = "Hat Payı" ve "Hitbox Etki Alanı" kaydırıcılarından büyük olan (hitbox tuşlu atışa da işler).
-    --  • Hat ekseni: öngörü yönü; katil duruyorsa son 0.45 sn'de en çok hareket ettiği eksen (ileri-geri);
-    --    o da yoksa benden katile bakan yön.
-    --  • Hat duvara / engele çarpıyorsa uçlar yer değiştirir, olmazsa yan eksen ve dikey eksen denenir.
-    --  • Hiçbiri olmazsa nil döner (eski nokta atışına geçilir). Yakına ışınlanma YOK, karakter olduğu yerde kalır.
-    -- Döner: çıkış noktası, hedef noktası (Vector3, Vector3) ya da nil.
-    SFX.sweepOn = true
-    SFX.sweepMargin = 2.5
-    function SFX.sweepLine(part, hum)
+
+    -- ESKİ KAÇILAMAZ HAT (yedek: SFX.engineOn = false iken kullanılır)
+    function SFX.legacySweep(part, hum)
         if SFX.sweepOn == false then return nil end
         if not (part and part.Parent and hum) then return nil end
         local cur = part.Position
@@ -7746,6 +8008,173 @@ end)()
         return nil
     end
 
+    -- Hat, katil dışındaki bir oyuncunun (masum) yakınından geçiyorsa false: sunucu ışını ilk değdiği karaktere
+    -- sayabilir; masumu vurmamak için bu hat elenir. skipPart = katilin HumanoidRootPart'ı.
+    function SFX.lineClear(A, B, skipPart)
+        local d = B - A
+        local L2 = d.X * d.X + d.Y * d.Y + d.Z * d.Z
+        if L2 < 1e-6 then return true end
+        local skipCh = skipPart and skipPart.Parent
+        for _, pl in ipairs(Players:GetPlayers()) do
+            local ch = pl ~= LocalPlayer and pl.Character
+            if ch and ch ~= skipCh then
+                local hrp = ch:FindFirstChild("HumanoidRootPart")
+                local hm = ch:FindFirstChildOfClass("Humanoid")
+                if hrp and (not hm or hm.Health > 0) then
+                    local w = hrp.Position - A
+                    local u = math.clamp((w.X * d.X + w.Y * d.Y + w.Z * d.Z) / L2, 0, 1)
+                    local c = A + d * u
+                    if (hrp.Position - c).Magnitude < 1.9 then return false end
+                end
+            end
+        end
+        return true
+    end
+
+    -- Ağırlıklı nokta bulutunun ana ekseni (3 boyutlu PCA, kuvvet iterasyonu). Döner: birim eksen, en büyük özdeğer (stud²)
+    function SFX.principalAxis(pts, hint)
+        local sw, mx, my, mz = 0, 0, 0, 0
+        for _, e in ipairs(pts) do
+            local q, w = e[1], e[2]
+            sw = sw + w
+            mx = mx + w * q.X
+            my = my + w * q.Y
+            mz = mz + w * q.Z
+        end
+        if sw <= 0 then return nil, 0 end
+        mx, my, mz = mx / sw, my / sw, mz / sw
+        local cxx, cxy, cxz, cyy, cyz, czz = 0, 0, 0, 0, 0, 0
+        for _, e in ipairs(pts) do
+            local q, w = e[1], e[2]
+            local dx, dy, dz = q.X - mx, q.Y - my, q.Z - mz
+            cxx = cxx + w * dx * dx
+            cxy = cxy + w * dx * dy
+            cxz = cxz + w * dx * dz
+            cyy = cyy + w * dy * dy
+            cyz = cyz + w * dy * dz
+            czz = czz + w * dz * dz
+        end
+        cxx, cxy, cxz, cyy, cyz, czz = cxx / sw, cxy / sw, cxz / sw, cyy / sw, cyz / sw, czz / sw
+        local x, y, z = hint.X, hint.Y, hint.Z
+        local hm = math.sqrt(x * x + y * y + z * z)
+        if hm < 1e-6 then x, y, z, hm = 1, 0.3, 0.2, 1.0 end
+        x, y, z = x / hm, y / hm, z / hm
+        local lam = 0
+        for _ = 1, 14 do
+            local nx = cxx * x + cxy * y + cxz * z
+            local ny = cxy * x + cyy * y + cyz * z
+            local nz = cxz * x + cyz * y + czz * z
+            local m = math.sqrt(nx * nx + ny * ny + nz * nz)
+            if m < 1e-9 then return nil, 0 end
+            x, y, z, lam = nx / m, ny / m, nz / m, m
+        end
+        return Vector3.new(x, y, z), lam
+    end
+
+    -- UZAKTAN KESİN İSABET ("kaçılamaz hat") — Akıcı Takip Motoru ile:
+    -- Mermi silahtan değil, katilin hemen yanındaki bir noktadan çıkar; hat boyunca katilin sunucuda
+    -- bulunabileceği TÜM yerler (öngörülen yol, geçmiş izi, tam hızla devam, geri dönüş) kapsanır.
+    --  • Senin hareketin hesaba karışmaz (çıkış noktası katilin yanında). Katil ister zıplasın ister ani sağ-sol yapsın,
+    --    hat o yöndeki olası yolu kapsayacak uzunlukta çekilir.
+    --  • Hat ekseni: olası konum bulutunun ana ekseni (3 boyutlu); katil duruyorsa benden katile bakan yön.
+    --  • Hat duvara / engele / masum oyuncuya çarpıyorsa kısaltılmış hatlar, sonra yan ve dikey eksen denenir.
+    --  • Hiçbiri olmazsa nil döner (nokta atışına geçilir). Yakına ışınlanma YOK, karakter olduğu yerde kalır.
+    -- Döner: çıkış noktası, hedef noktası (Vector3, Vector3) ya da nil.
+    SFX.sweepOn = true
+    SFX.sweepMargin = 2.5
+    function SFX.sweepLine(part, hum, noWall)
+        if SFX.sweepOn == false then return nil end
+        if not (part and part.Parent and hum) then return nil end
+        if SFX.engineOn == false then return SFX.legacySweep(part, hum) end
+        -- Çıkış noktası katilin yanında olduğu için kendi hareketim hesaba KARIŞMAZ
+        local pred, E = SFX.predict(part, hum, false)
+        local cur, t = E.p, E.t or 0.2
+        local flat = E.flat or Vector3.zero
+        local h = SFX.hist[part]
+        local q = pred + Vector3.new(0, tonumber(SFX.jumpBias) or 0, 0)
+        -- Katilin sunucuda olabileceği yerler: model yolu (zamanlama payıyla) + geçmiş iz + "tam hızla devam" + "geri döner"
+        local pts = {}
+        if h then
+            for i = 1, #h do
+                if E.now - h[i].t <= 0.45 then pts[#pts + 1] = {h[i].p, 1} end
+            end
+        end
+        pts[#pts + 1] = {cur, 3}
+        pts[#pts + 1] = {pred, 6}
+        for _, f in ipairs({0.6, 0.8, 1.2, 1.4}) do
+            pts[#pts + 1] = {cur + SFX.pathAt(E, t * f), 3}
+        end
+        local fm = flat.Magnitude
+        if fm > 0 then
+            pts[#pts + 1] = {cur + flat * t, 3}
+            pts[#pts + 1] = {cur - flat.Unit * math.min(fm * t * 0.9, 12), 2}
+        end
+        local me = myHRP()
+        local lead = pred - cur
+        local hint = lead
+        if hint.Magnitude < 0.5 then hint = Vector3.new(1, 0.3, 0.2) end
+        local axis, lam = SFX.principalAxis(pts, hint)
+        if not axis or lam < 0.12 then
+            -- Hareketsiz: benden katile bakan yatay yön
+            local from = me and me.Position or (cur + Vector3.new(1, 0, 0))
+            local fl = Vector3.new(cur.X - from.X, 0, cur.Z - from.Z)
+            axis = fl.Magnitude > 0.1 and fl.Unit or Vector3.new(0, 0, -1)
+        elseif lead.Magnitude >= 0.5 and axis:Dot(lead) < 0 then
+            axis = -axis
+        end
+        -- Hat payı: "Hat Payı" ile "Hitbox Etki Alanı" kaydırıcılarından büyük olanı. Eksen dikeyse payı büyüt:
+        -- gövde dikeyde yarıya yakın (~2.9 stud) uzandığı için çıkış noktası gövdenin içine düşmesin.
+        local m = math.clamp(math.max(tonumber(SFX.sweepMargin) or 2.5, tonumber(SFX.hitboxW) or 0), 1, 10)
+        m = m + 3.5 * math.abs(axis.Y)
+        local lo, hi = 0, 0
+        for _, e in ipairs(pts) do
+            local d = (e[1] - q):Dot(axis)
+            if d < lo then lo = d end
+            if d > hi then hi = d end
+        end
+        -- Evrensel erişim: katil hangi yöne ivmelenirse ivmelensin (ani dönüş / durup kalkma / zıplama) o yönde
+        -- ufuk süresinde alabileceği yol hattın içinde kalsın. Hat uzunluğu isabeti azaltmaz, çıkış noktasını
+        -- gövdeden uzak tutar.
+        local ws = (hum and tonumber(hum.WalkSpeed)) or 16
+        local ah = math.sqrt(axis.X * axis.X + axis.Z * axis.Z)
+        local reach = math.min(0.8 * math.max(ws, 16) * t, 12) * (tonumber(SFX.sweepReach) or 1) * ah
+            + (tonumber(SFX.jumpReach) or 5) * math.abs(axis.Y)
+        lo, hi = math.max(math.min(lo, -reach), -22), math.min(math.max(hi, reach), 30)
+        local op = OverlapParams.new()
+        op.FilterType = Enum.RaycastFilterType.Exclude
+        op.FilterDescendantsInstances = charsList()
+        pcall(function() op.RespectCanCollide = true end)
+        local function free(pt)
+            local ok, parts = pcall(function() return workspace:GetPartBoundsInRadius(pt, 0.6, op) end)
+            return ok and #parts == 0
+        end
+        local function try(ax, a1, a2)
+            local A, B = q + ax * a1, q + ax * a2
+            if noWall then return A, B end   -- Duvar Arkası modu: engel / görüş kontrolü yok, tam hat
+            if free(A) and hasLineOfSight(A, B) and SFX.lineClear(A, B, part) then return A, B end
+            if free(B) and hasLineOfSight(B, A) and SFX.lineClear(B, A, part) then return B, A end
+            return nil
+        end
+        -- Tam hat; engel varsa giderek kısaltılmış hatlar
+        for _, sc in ipairs({1, 0.6, 0.3, 0}) do
+            local A, B = try(axis, lo * sc - m, hi * sc + m)
+            if A then return A, B end
+        end
+        -- Eksen eğikse yatay eksen, sonra yan eksen ve dikey eksen
+        local axh = Vector3.new(axis.X, 0, axis.Z)
+        local perp = Vector3.new(-axis.Z, 0, axis.X)
+        if perp.Magnitude < 0.1 then perp = Vector3.new(1, 0, 0) end
+        local alts = {}
+        if axh.Magnitude > 0.3 then alts[#alts + 1] = axh.Unit end
+        alts[#alts + 1] = perp.Unit
+        alts[#alts + 1] = Vector3.new(0, 1, 0)
+        for _, ax in ipairs(alts) do
+            local A, B = try(ax, -(m + 2), m + 2)
+            if A then return A, B end
+        end
+        return nil
+    end
+
     SFX.airOn = true
     SFX.airOffset = 1.6   -- mermi çıkış noktasının katilden uzaklığı (stud); 0 olmasın (yön sıfırlanır)
     function SFX.airShoot(part, hum)
@@ -7784,6 +8213,47 @@ end)()
             dv = dv.Magnitude > 0.1 and dv.Unit or Vector3.new(1, 0, 0)
             return target + dv * math.max(0.5, tonumber(SFX.airOffset) or 1.6)
         end)
+        return okS and res and true or false
+    end
+
+    -- DUVAR ARKASI ATIŞI: mermi silahtan değil, direkt KATİLİN GÖVDESİNİN İÇİNDEN çıkar.
+    -- Nerede olursan ol, katil ne kadar uzakta / duvarın arkasında olursa olsun araya hiçbir şey girmez:
+    -- çıkış noktası katilin (öngörülen) gövde noktasıdır, hedef noktası da hemen 2 stud ötesidir (yön: benden katile).
+    -- Karakter olduğu yerde kalır (havada asılı kalma / ışınlanma YOK).
+    function SFX.insideShoot(part, hum)
+        if not (part and part.Parent and hum) then return nil end
+        local gun, ch = findGun(), LocalPlayer.Character
+        if not (gun and ch) then return nil end
+        local hum0 = myHum()
+        local tE = os.clock()
+        while gun.Parent ~= ch and os.clock() - tE < 1.2 and alive do
+            if hum0 then pcall(function() hum0:EquipTool(gun) end) end
+            local t1 = os.clock()
+            while gun.Parent ~= ch and os.clock() - t1 < 0.25 do task.wait() end
+        end
+        if gun.Parent ~= ch then return nil end
+        task.wait(SFX.snipeFirst and (0.25 + getPingSeconds() * 0.5) or 0.03)
+        local outO
+        local okS, res = pcall(fireGunAt, function()
+            outO = nil
+            -- 1) KAÇILAMAZ HAT (duvar kontrolsüz): çıkış noktası katilin hemen yanında; hat, katilin sunucuda olabileceği
+            --    TÜM yerlerden (öngörülen yol, geçmiş iz, tam hızla devam, geri dönüş, zıplama) geçer. Ani yön değişimi, ping
+            --    ve zıplama isabeti bozmaz. Araya duvar girse de hat engellenmez.
+            local o, a = SFX.sweepLine(part, hum, true)
+            if o then
+                outO = o
+                SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+                return a
+            end
+            -- 2) Yedek: gövdenin hemen (1.4 stud) önünden, gövde merkezinden geçen nokta atışı
+            local c = aimPoint(part, hum)
+            local me = myHRP()
+            local d = me and (c - me.Position) or Vector3.new(0, 0, -1)
+            d = d.Magnitude > 0.1 and d.Unit or Vector3.new(0, 0, -1)
+            outO = c - d * 1.4
+            SFX.shotRec = {part = part, base = part.Position, flat = SFX.lastFlat, lead = SFX.lastLead or 0}
+            return c + d * 3
+        end, function() return outO end)
         return okS and res and true or false
     end
 
@@ -8031,7 +8501,7 @@ end)()
         task.delay(0.18, function()
             if (SFX.lastRedirect or 0) < t then shootTarget() return end
             -- Gerçek atış katile yönlendirildi; hedef hâlâ ayaktaysa (ıskaladıysa) en fazla 2 takip atışı
-            if SFX.retryOn then
+            if SFX.retryOn and not (wallOn and Settings.PremiumActive) then
                 SFX.followTok = SFX.followTok + 1
                 local my = SFX.followTok
                 task.spawn(function()
@@ -8060,15 +8530,8 @@ end)()
         local hum = ch and ch:FindFirstChildOfClass("Humanoid")
         local part = ch and targetPartOf(ch)
         if not (part and hum and hum.Health > 0) then return nil end
-        -- Duvar modu + kısa ışınlanma açıksa ve hedef görünmüyorsa: gerçek atışı iptal et (silah beklemeye girmesin),
-        -- yerine ışınlanmalı atış yapılacak
-        if premiumWall and SFX.peekOn and SFX.invisOn and os.clock() - (SFX.peekWhyAt or 0) > 4 then
-            SFX.peekWhyAt = os.clock()
-            pcall(notifyTop, "🧱 Görünmezlik açıkken ışınlanıp vurma çalışmaz, normal atış yapılıyor.", 4)
-        end
-        if premiumWall and SFX.peekOn and not SFX.invisOn and not SFX.aimForce and (SFX.peekAlways or SFX.peekNeeded(part, hum)) then
-            return "swallow"
-        end
+        -- Duvar Arkası (premium): gerçek atış iptal edilir, yerine Oto Farm bitişindeki yöntemle atış yapılır (shootTarget)
+        if premiumWall then return "swallow" end
         local handle
         local gun = findGun()
         if gun then handle = gun:FindFirstChild("Handle") end
@@ -10168,6 +10631,65 @@ end)()
     createButton(MM2Page, "🔫  Keskin Vuruş (Katil) — Şimdi", function()
         shootTarget()
     end)
+    -- KESKİN VURUŞ MODU  (tek tuş • iki mod)
+    --   Normal      → katil duvar arkasındaysa vurmaz (görüş hattı şart)
+    --   Duvar Arkası → mermi katilin gövdesinden çıkıp vurur (👑 premium; tuşa basış başına tek atış, duvar / mesafe önemsiz)
+    -- İkisi de aynı "Keskin Vuruş Tuşu" ile çalışır; ikinci bir tuş yok.
+    SFX.shootModeCtl = (function()   -- ayrı fonksiyon: ana bölümün yerel değişken sınırını artırmaz
+        local ctl = {Key = "EZRAGOX_ShootModeWall"}
+        local OLD_WALL_KEY = "🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"
+        if Settings.ToggleStates[ctl.Key] == nil and Settings.ToggleStates[OLD_WALL_KEY] == true then
+            Settings.ToggleStates[ctl.Key] = true   -- eski "Duvar Arkası Vuruş" anahtarı açıksa yeni modda da seçili gelsin
+        end
+        local row = baseRow(MM2Page, "Frame", 70)
+        rowLabel(row, "🔫  Keskin Vuruş Modu  (tek tuş • iki mod)")
+        local btns = {}
+        local function paint(wall)
+            for name, b in pairs(btns) do
+                local on = ((name == "wall") == wall)
+                tween(b, 0.18, {
+                    BackgroundColor3 = on and Color3.fromRGB(200, 30, 50) or Color3.fromRGB(34, 20, 26),
+                    TextColor3 = on and Color3.new(1, 1, 1) or Color3.fromRGB(175, 155, 162),
+                }, Enum.EasingStyle.Quad)
+            end
+        end
+        local function mk(name, text, left)
+            local b = new("TextButton", {
+                Position = left and UDim2.new(0, 12, 0, 38) or UDim2.new(0.5, 3, 0, 38),
+                Size = UDim2.new(0.5, -15, 0, 26),
+                BackgroundColor3 = Color3.fromRGB(34, 20, 26), BorderSizePixel = 0, AutoButtonColor = false,
+                Text = text, Font = Enum.Font.GothamBold, TextSize = 13,
+                TextColor3 = Color3.fromRGB(175, 155, 162), ZIndex = 5,
+            }, row)
+            corner(b, 8)
+            btns[name] = b
+            return b
+        end
+        local bNormal = mk("normal", "Normal", true)
+        local bWall = mk("wall", "Duvar Arkası  👑", false)
+        function ctl.Set(v, silent, skipSave)
+            v = v and true or false
+            if v and not Settings.PremiumActive then
+                v = false
+                if not silent then
+                    notify("Premium Gerekli", "Duvar arkası vuruş sadece premium kullanıcılar içindir.", 3)
+                end
+            end
+            wallOn = v   -- tüm atış yolları (tuş, sol tık, aimbot) bu bayrağı okur
+            paint(v)
+            if not skipSave then
+                Settings.ToggleStates[ctl.Key] = v
+                saveConfig()
+            end
+            if v and not silent then
+                notify("Keskin Vuruş", "Duvar Arkası modu: nerede olursan ol mermi katilin yanından çıkıp gövdesinden geçer. Sadece tuşa bastığında tek atış, havada asılı kalmazsın.", 3)
+            end
+        end
+        bind(bNormal.MouseButton1Click, function() playClickSound() ctl.Set(false) end)
+        bind(bWall.MouseButton1Click, function() playClickSound() ctl.Set(true) end)
+        paint(false)
+        return ctl
+    end)()
     keyRow("Keskin Vuruş Tuşu (katil)", "MM2ShootKey")
     local LEFTCLICK_TOGGLE = "🖱️  Sol Tıkla Keskin Vuruş (Silah Elindeyken)"
     SFX.shootLeftOn = savedOr(LEFTCLICK_TOGGLE, false)
@@ -10181,6 +10703,13 @@ end)()
     SFX.sweepOn = savedOr(SWEEP_TOGGLE, true)
     createToggle(MM2Page, SWEEP_TOGGLE, SFX.sweepOn, function(v)
         SFX.sweepOn = v and true or false
+    end)
+    -- Akıcı Takip Motoru: yeni nişan / hat hesabı (regresyon hız, dönüş modeli, balistik dikey, olası konumların ana ekseni).
+    -- Kapalıysa eski basit model kullanılır (yedek).
+    SFX.engineToggleName = "🌊  Akıcı Takip Motoru  (Yeni • Önerilen)"   -- yerel değişken sınırı için tabloda
+    SFX.engineOn = savedOr(SFX.engineToggleName, true)
+    createToggle(MM2Page, SFX.engineToggleName, SFX.engineOn, function(v)
+        SFX.engineOn = v and true or false
     end)
     -- Sabit (hazır) ayarlar: hat payı 2.5 stud, hitbox etki alanı 3 stud, bıçak etki alanı 4 stud
     SFX.sweepMargin = 2.5
@@ -10200,34 +10729,8 @@ end)()
         SFX.retryOn = v
     end)
 
-    local WALL_TOGGLE = "🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"
-    local wallToggle
-    wallToggle = createToggle(MM2Page, WALL_TOGGLE, false, function(v)
-        if v and not Settings.PremiumActive then
-            wallToggle.Set(false, true, true)
-            notify("Premium Gerekli", "Duvar arkası vuruş sadece premium kullanıcılar içindir.", 3)
-            return
-        end
-        wallOn = v and true or false
-        if v then
-            notify("Duvar Arkası Vuruş", "Aktif! Haritada nerede olursan ol, ateş edince katile direkt gider.", 4)
-        end
-    end, false)
-    SFX.peekToggleName = "🧱  Duvar Arkası: Katilin Yanına Işınlanıp Vur, Geri Dön (Önerilir)"   -- yerel değişken sınırı için tabloda
-    SFX.peekOn = savedOr(SFX.peekToggleName, true)
-    createToggle(MM2Page, SFX.peekToggleName, SFX.peekOn, function(v)
-        SFX.peekOn = v
-        if v then
-            notify("Duvar Arkası", "Ateş edince karakter katilin yanındaki açık bir noktaya ışınlanıp vurur, sonra geri döner.", 5)
-        end
-    end)
-    createToggle(MM2Page, "🎯  Görüş Olsa Bile Katilin Yanına Işınlan", true, function(v)
-        SFX.peekAlways = v and true or false
-    end)
-    createSlider(MM2Page, "⚡  Işınlanma Hızı (%)  •  vurmuyorsa azalt, belli oluyorsa artır", 0, 100, 70, function(v)
-        SFX.peekSpeed = (tonumber(v) or 70) / 100
-    end)
-    keyRow("Duvar Arkası Vuruş Tuşu  (👑 PREMİUM • orta tık atanabilir)", "MM2WallKey")
+    -- "Duvar Arkası" modunun ayrı anahtarı / ayar satırı yok: mod seçiciden seçilince atış, olduğun yerden direkt
+    -- katilin konumuna gönderilir (Oto Farm bitişindeki gibi). Havadan atış / ışınlanma yok.
     SFX.foldEnd(SFX.keskinFold)
 
     createSection(MM2Page, "AIMBOT")
@@ -10250,9 +10753,9 @@ end)()
     end)
     keyRow("Tek Tuş: Şerifi Fırlat + Silahı Al + Katili Vur  (orta tık atanabilir)", "MM2SnipeKey")
     Settings.PremiumGated = Settings.PremiumGated or {}
-    Settings.PremiumGated[#Settings.PremiumGated + 1] = wallToggle
+    Settings.PremiumGated[#Settings.PremiumGated + 1] = SFX.shootModeCtl
     -- Açılışta görsel olarak kapalı başlasın (kayıtlı durum, premium doğrulanınca geri yüklenir)
-    wallToggle.Set(false, true, true)
+    SFX.shootModeCtl.Set(false, true, true)
 
     ---------------------------------------------------------
     -- 🌈 MERMİ İZİ (RGB)  +  ⚡ VURUŞ EFEKTLERİ (ŞİMŞEK / VURUŞ ANİMASYONU)
@@ -20273,6 +20776,13 @@ function Troll.attack(mode)
             if cam and tHum0 then cam.CameraSubject = tHum0 end
         end)
 
+        -- lobi / ölü: çarpışma grubunu hedefle eşitle (aşağıda geri alınır)
+        local restoreCG
+        pcall(function()
+            local _, tH0 = Troll.parts(target)
+            if tH0 and Settings.SyncCollisionGroup then restoreCG = Settings.SyncCollisionGroup(myChar, tH0) end
+        end)
+
         pcall(function()
             local startT = os.clock()
             local angle = 0
@@ -20287,10 +20797,13 @@ function Troll.attack(mode)
 
                 local offset, lin, rot, spin
                 if mode == "fling" then
-                    offset = CFrame.new(0, 2, 0) + lead
-                    lin = Vector3.new(9e5, -9e8, 9e5)
-                    rot = Vector3.new(9e8, 9e8, 9e8)
-                    spin = CFrame.Angles(math.rad(angle), 0, 0)
+                    -- DİKEY FLING: hedefin tam üstünden, yalnızca aşağı hız, dönme yok → yandakiler savrulmaz
+                    local l2 = Vector3.new(lead.X, 0, lead.Z)
+                    if l2.Magnitude > 4 then l2 = l2.Unit * 4 end
+                    offset = CFrame.new(0, 2, 0) + l2
+                    lin = Vector3.new(0, -9e8, 0)
+                    rot = Vector3.zero
+                    spin = CFrame.new()
                 elseif mode == "sky" then
                     offset = CFrame.new(0, 2, 0) + lead
                     lin = Vector3.new(0, -9e5, 0)
@@ -20336,6 +20849,8 @@ function Troll.attack(mode)
                 end
             end
         end)
+
+        if restoreCG then pcall(restoreCG) end
 
         -- Kendi karakterini eski yerine güvenle geri götür
         for _ = 1, 20 do
@@ -24695,6 +25210,38 @@ selectTab(Tabs[1])
 ---------------------------------------------------------
 local fps, fpsAcc, fpsN = 60, 0, 0
 
+-- Performans (v6.8 optimize): yalnızca EKRANDA GÖRÜNEN öğelerin animasyonu güncellenir.
+-- Önceden ~600 gradient / nabız özelliği, menü kapalıyken bile saniyede 12 kez (açıkken 30 kez),
+-- görünmeyen sekmelere de yazılıyordu. Şimdi:
+--   k = 0 : menü penceresinin dışındaki öğe  -> her zaman güncellenir (eskisi gibi)
+--   k = 1 : menü çerçevesi (başlık / kenar çubuğu) -> yalnızca menü görünürken
+--   k = 2 : bir sekme sayfasının içinde -> yalnızca o sayfa görünürken (arama açıkken hepsi)
+-- Yeni `local` açılmadı (200 local sınırı); yardımcılar UIFlows tablosunda durur.
+UIFlows.tp, UIFlows.vis = {}, {}
+UIFlows.live = function(e, obj, main, searching)
+    local k = e.k
+    if k == nil then
+        if obj.Parent == nil then return true end   -- henüz bağlanmamış / silinmiş: eskisi gibi güncelle
+        if not obj:IsDescendantOf(MainFrame) then
+            k = 0
+        elseif not obj:IsDescendantOf(Content) then
+            k = 1
+        else
+            local p = obj
+            while p.Parent ~= Content do p = p.Parent end
+            -- Arama sayfasındayken (satırlar geçici taşınır) sekmeye bağlanamaz: şimdilik güncelle, sonra tekrar dene
+            if not UIFlows.tp[p] then return true end
+            e.pg = p
+            k = 2
+        end
+        e.k = k
+    end
+    if k == 0 then return true end
+    if not main then return false end
+    if k == 1 then return true end
+    return searching or UIFlows.vis[e.pg] == true
+end
+
 local animAcc = 0
 bind(RunService.RenderStepped, function(rawDt)
     local t = os.clock()
@@ -24713,6 +25260,25 @@ bind(RunService.RenderStepped, function(rawDt)
     local dt = animAcc
     animAcc = 0
 
+    -- Görünürlük bilgisi: menü penceresi görünür mü, hangi sekme sayfaları açık, arama sayfası açık mı
+    local main = MainFrame.Visible
+    local tp, vis = UIFlows.tp, UIFlows.vis
+    table.clear(tp)
+    for _, tb in ipairs(Tabs) do
+        if tb.page then tp[tb.page] = true end
+    end
+    local searching = false
+    if main then
+        table.clear(vis)
+        for _, ch in ipairs(Content:GetChildren()) do
+            if ch:IsA("GuiObject") and ch.Visible then
+                vis[ch] = true
+                if ch:IsA("ScrollingFrame") and not tp[ch] then searching = true end
+            end
+        end
+    end
+    local live = UIFlows.live
+
     -- Performans: ayni degerleri paylasan nesneler icin hesap tek sefer yapilir (GC baskisi azalir)
     local accCache, seqCache = {}, {}
     for _, a in ipairs(UIAccents) do
@@ -24721,12 +25287,19 @@ bind(RunService.RenderStepped, function(rawDt)
         a.obj[a.prop] = c
     end
     for _, f in ipairs(UIFlows) do
-        local seq = seqCache[f.key]
-        if not seq then seq = flowSeq(f.phase, f.step); seqCache[f.key] = seq end
-        f.grad.Color = seq
-        if f.spin then f.grad.Rotation = (f.grad.Rotation + f.spin * dt) % 360 end
+        local g = f.grad
+        if live(f, g, main, searching) then
+            local seq = seqCache[f.key]
+            if not seq then seq = flowSeq(f.phase, f.step); seqCache[f.key] = seq end
+            g.Color = seq
+            if f.spin then g.Rotation = (g.Rotation + f.spin * dt) % 360 end
+        end
     end
-    for _, p in ipairs(Pulsers) do p.obj[p.prop] = p.base + math.sin(t * p.speed) * p.amp end
+    for _, p in ipairs(Pulsers) do
+        if live(p, p.obj, main, searching) then
+            p.obj[p.prop] = p.base + math.sin(t * p.speed) * p.amp
+        end
+    end
 
 end)
 
