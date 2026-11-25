@@ -125,6 +125,7 @@ local Settings = {
     Scale = 1,
     ToggleKey = Enum.KeyCode.G,
     SpeedVal = 48,
+    SpeedKey = Enum.KeyCode.LeftShift,
     FlyKey = Enum.KeyCode.F,
     FlySpeed = 50,
     Language = "TR",
@@ -177,6 +178,7 @@ local function saveConfig()
                 Scale = Settings.Scale,
                 ToggleKey = Settings.ToggleKey.Name,
                 SpeedVal = Settings.SpeedVal,
+                SpeedKey = Settings.SpeedKey.Name,
                 FlyKey = Settings.FlyKey.Name,
                 FlySpeed = Settings.FlySpeed,
                 Language = Settings.Language,
@@ -235,6 +237,7 @@ local function loadConfig()
                 if data.Scale ~= nil then Settings.Scale = data.Scale end
                 if data.ToggleKey and Enum.KeyCode[data.ToggleKey] then Settings.ToggleKey = Enum.KeyCode[data.ToggleKey] end
                 if data.SpeedVal ~= nil then Settings.SpeedVal = data.SpeedVal end
+                if data.SpeedKey and Enum.KeyCode[data.SpeedKey] then Settings.SpeedKey = Enum.KeyCode[data.SpeedKey] end
                 if data.FlyKey and Enum.KeyCode[data.FlyKey] then Settings.FlyKey = Enum.KeyCode[data.FlyKey] end
                 if data.FlySpeed ~= nil then Settings.FlySpeed = data.FlySpeed end
                 if data.Language == "EN" or data.Language == "TR" then Settings.Language = data.Language end
@@ -5431,6 +5434,18 @@ bind(UserInputService.InputBegan, function(input, gpe)
             end
             saveConfig()
             notify("Fly Tuşu Değiştirildi", "Yeni Fly tuşu: " .. Settings.FlyKey.Name, 3)
+        end
+        return
+    end
+
+    if Settings.SpeedKeyListening then
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            Settings.SpeedKey = input.KeyCode
+            Settings.SpeedKeyListening = false
+            Settings.SpeedKeyCaptureConsumed = true
+            if Settings.SpeedKeyTextCallback then Settings.SpeedKeyTextCallback(Settings.SpeedKey.Name) end
+            saveConfig()
+            notify("Hız Tuşu Değiştirildi", "Yeni hızlı koşma tuşu: " .. Settings.SpeedKey.Name, 3)
         end
         return
     end
@@ -19060,7 +19075,8 @@ do
         end
     end
 
-    createToggle(FeaturesPage, "🏃‍♂️  Süper Hız Aktif Et", false, function(v)
+    local speedToggleObj
+    speedToggleObj = createToggle(FeaturesPage, "🏃‍♂️  Süper Hız Aktif Et", false, function(v)
         speedActive = v
         pcall(function()
             local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -19075,6 +19091,31 @@ do
         Settings.SpeedVal = v
         if speedActive then pcall(enforceSpeed) end
     end, "")
+
+    Settings.SpeedToggleCallback = function()
+        if speedToggleObj then
+            -- Aynı anahtar hem arayüz anahtarını hem gerçek hız durumunu günceller.
+            speedToggleObj.Set(not speedActive)
+        end
+    end
+
+    do
+        local row, st = baseRow(FeaturesPage, "TextButton", 42)
+        rowLabel(row, "🏃  Hızlı Koşma Aç/Kapat Tuşu")
+        local keyText = new("TextLabel", {
+            AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -12, 0.5, 0), Size = UDim2.new(0, 100, 0, 26),
+            BackgroundTransparency = 1, Text = Settings.SpeedKey.Name, Font = Enum.Font.GothamBold, TextSize = 13,
+            TextColor3 = Color3.fromRGB(255, 65, 75), TextXAlignment = Enum.TextXAlignment.Right, ZIndex = 4,
+        }, row)
+        hoverFx(row, st)
+        Settings.SpeedKeyTextCallback = function(name) setText(keyText, name) end
+        bind(row.MouseButton1Click, function()
+            playClickSound()
+            Settings.SpeedKeyListening = true
+            setText(keyText, "Tuşa basın...")
+            notify("Tuş Bekleniyor", "Hızlı koşma için yeni bir klavye tuşuna basın...", 3)
+        end)
+    end
 
     -- Karakter yenilenince (ölüp doğunca): oyunun kendi doğuş script'i WalkSpeed'i
     -- ayarlamayı bitirsin diye kısa süre beklenir, sonra üstüne yazılır.
@@ -19435,7 +19476,11 @@ createSlider(FeaturesPage, "🚀  Fly Hızı", 10, 300, Settings.FlySpeed, funct
 end, "")
 
 bind(UserInputService.InputBegan, function(input, gpe)
-    if not ready or listeningFlyKey or listeningForKey or Settings.EmoteListening then return end
+    if Settings.SpeedKeyCaptureConsumed then
+        Settings.SpeedKeyCaptureConsumed = nil
+        return
+    end
+    if not ready or listeningFlyKey or listeningForKey or Settings.SpeedKeyListening or Settings.EmoteListening then return end
     -- MM2 gibi oyunlar tuşları kendi kısayollarına bağlayıp gpe=true döndürebilir.
     -- Bu yüzden yalnızca yazı kutusuna yazarken ya da Roblox menüsü açıkken yok sayılır.
     if gpe and UserInputService:GetFocusedTextBox() then return end
@@ -19445,6 +19490,9 @@ bind(UserInputService.InputBegan, function(input, gpe)
         flyActive = not flyActive
         toggleFly(flyActive)
         flyToggleObj.Set(flyActive, true)
+    end
+    if input.KeyCode == Settings.SpeedKey and Settings.SpeedToggleCallback then
+        Settings.SpeedToggleCallback()
     end
 end)
 
