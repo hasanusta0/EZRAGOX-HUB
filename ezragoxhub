@@ -1,5 +1,5 @@
 --[[
-    EZRAGOX HUB  •  Türk Troll Scripti  •  v6.8 (Akıcı Takip Motoru)
+    EZRAGOX HUB  •  v6.8 (Akıcı Takip Motoru)
 ]]
 
 --[[
@@ -77,14 +77,10 @@ local GUI_NAME = "EZRAGOX_HUB"
 
 local alive = true
 
--- FPS: Roblox'u açılışta mümkün olan en yüksek FPS'e aç (executor setfpscap / FFlag destekliyorsa).
--- Kendi fonksiyonunda: ana bloğun local sınırına eklenmez.
+-- Varsayılan kare hızını 144 FPS'te tut: sınırsız çizim yükü takılma ve ısınmayı artırabilir.
+-- İsteğe bağlı FPS PRO ayarı kendi seçilen sınırını kullanır.
 ;(function()
-    if setfflag then
-        pcall(setfflag, "DFIntTaskSchedulerTargetFps", "9999")
-        pcall(setfflag, "FFlagTaskSchedulerLimitTargetFpsTo2402", "False")
-    end
-    if setfpscap then pcall(setfpscap, 9999) end
+    if setfpscap then pcall(setfpscap, 144) end
 end)()
 local conns = {}
 local shieldCleanup = nil -- Kalkan özelliği temizliği (closeAll içinde çağrılır)
@@ -162,7 +158,6 @@ local Settings = {
     EmoteKey = Enum.KeyCode.B,       -- Premium Emote: dansı aç/kapa tuşu
     EmoteSel = nil,                  -- Premium Emote: son seçilen dans (ad)
     EmoteListening = false,          -- Emote tuşu seçilirken true
-    TagIdx = nil,                    -- Son seçilen sahte rütbe sırası
     CursorStyle = "🎯",
     CursorSize = 32,
     CursorSpin = false,
@@ -214,7 +209,6 @@ local function saveConfig()
                 AnimPack = Settings.AnimPack,
                 EmoteKey = Settings.EmoteKey.Name,
                 EmoteSel = Settings.EmoteSel,
-                TagIdx = Settings.TagIdx,
                 CursorStyle = Settings.CursorStyle,
                 CursorSize = Settings.CursorSize,
                 CursorSpin = Settings.CursorSpin,
@@ -270,7 +264,6 @@ local function loadConfig()
                 if type(data.AnimPack) == "string" then Settings.AnimPack = data.AnimPack end
                 if data.EmoteKey and Enum.KeyCode[data.EmoteKey] then Settings.EmoteKey = Enum.KeyCode[data.EmoteKey] end
                 if type(data.EmoteSel) == "string" then Settings.EmoteSel = data.EmoteSel end
-                if tonumber(data.TagIdx) then Settings.TagIdx = math.floor(tonumber(data.TagIdx)) end
                 if type(data.CursorStyle) == "string" then Settings.CursorStyle = data.CursorStyle end
                 if tonumber(data.CursorSize) then Settings.CursorSize = math.clamp(math.floor(tonumber(data.CursorSize)), 18, 64) end
                 if type(data.CursorSpin) == "boolean" then Settings.CursorSpin = data.CursorSpin end
@@ -348,7 +341,6 @@ local EN_TEXT = {
     ["📡  Işınlanarak Farm (Kısa Atlamalarla, Turbo'dan Önceliklidir)"] = "📡 Teleport Farm (Short Hops, Overrides Turbo)",
     ["⏱️  Işınlanma Aralığı  •  atılırsan artır"] = "⏱️ Teleport Interval • raise if kicked",
     ["📏  Atlama Mesafesi  •  atılırsan azalt"] = "📏 Hop Distance • lower if kicked",
-    ["👑  PREMİUM KIYAFET DEĞİŞTİRİCİ"] = "👑 PREMIUM OUTFIT CHANGER",
     ["💥  Seçili Oyuncuyu Fırlat (1000x)"] = "💥 Fling Selected Player (1000x)",
     ["💥  Vuruş Animasyonu (Katil Vurulunca)"] = "💥 Hit Animation (When Killer Is Hit)",
     ["💪  İtme Gücü"] = "💪 Knockback Strength",
@@ -422,30 +414,12 @@ local EN_TEXT = {
     ["Tüm oyuncular tekrar gösteriliyor."]="All players are shown again.",
     ["Sadece seçili oyuncu duvar arkasından görünüyor!"]="Only the selected player is visible through walls!",
     ["Oyuncular duvar arkasından görünüyor!"]="Players are visible through walls!",
-    ["HEDEF OYUNCU SEÇİMİ VE ARAMA"]="TARGET PLAYER SELECTION AND SEARCH",
-    ["Oyuncu Ara / Seç"]="Find / Select Player",
-    ["AKTİF TROLL ÖZELLİKLERİ (12 ADET)"]="ACTIVE TROLL FEATURES (12)",
-    ["AKTİF TROLL ÖZELLİKLERİ (11 ADET)"]="ACTIVE TROLL FEATURES (11)",
-    ["🔗  1. Seçilen Kişiye Yapış"]="🔗  1. Attach to Selected Player",
-    ["📎  1b. Oyuncuyu Kendine Yapıştır"]="📎  1b. Attach Player to You",
-    ["💥  3. Oyuncuya Patlama Efekti"]="💥  3. Explosion Effect on Player",
-    ["☄️  5. Kafasına Taş/Blok Düşür"]="☄️  5. Drop Rock/Block on Player",
-    ["📌  6. Oyuncuyu Olduğu Yere Sabitle"]="📌  6. Freeze Player in Place",
-    ["💃  7. Oyuncuyu Sars / Sallantı Ver"]="💃  7. Shake Player",
-    ["🕶️  8. Hedefin Bilgilerini Al"]="🕶️  8. Get Target Information",
-    ["🔄  9. Kamera Efekti (FOV Trolling)"]="🔄  9. Camera Effect (FOV Troll)",
-    ["💨  10. Sunucudaki Herkesi Zıplat"]="💨  10. Make Everyone Jump",
-    ["👁️  11. Seçilen Oyuncuyu İzle"]="👁️  11. Spectate Selected Player",
-    ["🚀  12. Seçilen Oyuncunun Yanına Işınlan"]="🚀  12. Teleport to Selected Player",
-    ["🎣  13. Seçilen Oyuncuyu Yanıma Çek"]="🎣  13. Pull Selected Player to Me",
-    ["💥  14. Seçili Oyuncuyu Fırlat (1000x)"]="💥  14. Fling Selected Player (1000x)",
     ["PREMİUM KİLİDİ"]="PREMIUM LOCKED",
     ["🔄  Premium Durumunu Yenile"]="🔄  Refresh Premium Status",
     ["🔑  Premium İste  (Discord Sunucusu)"]="🔑  Request Premium (Discord)",
     ["PREMİUM DURUMU"]="PREMIUM STATUS",
     ["👑  PREMİUM HAREKET"]="👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"]="👑  PREMIUM APPEARANCE",
-    ["👑  PREMİUM OTO TOPLAYICI"]="👑  PREMIUM AUTO COLLECTOR",
     ["👑  PREMİUM ARAÇLAR"]="👑  PREMIUM TOOLS",
     ["PREMİUM YÖNETİMİ"]="PREMIUM MANAGEMENT",
     ["✅  Premium Ver"]="✅  Grant Premium", ["❌  Premium Kaldır"]="❌  Remove Premium",
@@ -463,7 +437,6 @@ local EN_TEXT = {
     ["Fly Kapandı"]="Fly Disabled", ["Uçuş modu kapatıldı."]="Flight mode disabled.",
     ["ESP Aktif"]="ESP Enabled", ["ESP Kapandı"]="ESP Disabled",
     ["Oyuncu Seçilmedi"]="No Player Selected",
-    ["Önce bir Roblox kullanıcı adı yaz."]="Enter a Roblox username first.",
     ["Kopyalandı"]="Copied", ["Kopyalanamadı"]="Copy Failed",
     ["Discord adresi kopyalandı ✅"]="Discord address copied ✅",
     ["Premium Gerekli"]="Premium Required", ["Hata"]="Error",
@@ -491,30 +464,14 @@ local EN_TEXT = {
     ["Gizli Anahtar Yok"]="Missing Secret Key",
     ["Veritabanı Yok"]="Database Unavailable",
     ["Işınlandın"]="Teleported",
-    ["İzleme Aktif"]="Spectating",
-    ["İzleme Kapandı"]="Spectating Stopped",
-    ["Hedef Bilgisi"]="Target Information",
-    ["Kamera Troll"]="Camera Troll",
-    ["Toplu Zıplama"]="Mass Jump",
-    ["Yanına Çekildi"]="Pulled to You",
-    ["Kısmen Çekildi"]="Partially Pulled",
-    ["Çekilemedi"]="Could Not Pull",
-    ["Sallantı Bitti"]="Shaking Finished",
-    ["Blok Düştü"]="Block Dropped",
-    ["Sabitlendi"]="Frozen",
-    ["Patlama"]="Explosion",
     ["Tıkla-Işınlan"]="Click Teleport",
     ["Gökkuşağı Aura"]="Rainbow Aura",
     ["Uzaklaşma sınırı kaldırıldı."]="Zoom limit removed.",
     ["🎯  Rol ESP (Katil • Polis • Masum • Kahraman • Düşen Silah)"]="🎯  Role ESP (Murderer • Sheriff • Innocent • Hero • Dropped Gun)",
     ["🔪  Atılan Bıçak ESP (Katil Fırlatınca Kırmızı)"]="🔪  Thrown Knife ESP (Red)",
     ["🧱  Duvar Arkası Vuruş  (👑 PREMİUM)"]="🧱  Shoot Through Walls (👑 PREMIUM)",
-    ["💣  Katile İsabet Edince Şaka Bombası Kullan"]="💣  Use Prank Bomb When Murderer Is Hit",
-    ["Şaka Bombası"]="Prank Bomb",
     ["🎯  Uzaktan Vuruş: Kaçılamaz Hat  (Önerilen)"]="🎯  Long-Range Shot: Unavoidable Line  (Recommended)",
     ["🌊  Akıcı Takip Motoru  (Yeni • Önerilen)"]="🌊  Smooth Tracking Engine  (New • Recommended)",
-    ["Aktif! Şerifken katili vurduğun anda T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır. Iskalayınca ya da katilken atmaz."]="Active! As sheriff, the moment you hit the murderer, T is pressed, the prank bomb is found in whatever slot it is, equipped and clicked once. It does not fire on a miss or when you are the murderer.",
-    ["T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: "]="Pressed T but the prank bomb did not appear in your backpack. Your tools: ",
     ["☠️  Kill Aura  (Yakındakileri Otomatik Öldür)"]="☠️  Kill Aura (Automatically Eliminate Nearby Players)",
     ["🎯  Headshot Sesi (Katile İsabet Edince)"]="🎯  Headshot Sound (When Hitting the Murderer)",
     ["🔔  Silah Düşünce Üstte Bildirim"]="🔔  On-Screen Notification When the Gun Drops",
@@ -547,7 +504,6 @@ local EN_TEXT = {
     ["🌌 Gökyüzü uygulanamadı (kod hatası)."]="🌌 Could not apply sky (script error).",
     ["💀  Headless (Kafasız)"]="💀  Headless",
     ["🦴  Korblox (Sağ Bacak)"]="🦴  Korblox (Right Leg)",
-    ["🚨  Hileci Tespiti (Kırmızı HİLE Yazısı)"]="🚨  Cheater Detection (Red CHEATER Label)",
     ["🛡️  Anti-AFK (Atılmayı Engelle)"]="🛡️  Anti-AFK (Prevent Being Kicked)",
     ["Premium Gerekli"]="Premium Required",
     ["Önce geçerli bir anahtar gir."]="Enter a valid key first.",
@@ -560,10 +516,7 @@ local EN_TEXT = {
     ["DÜŞEN SİLAH"]="DROPPED GUN", ["OTOMATİK KAÇIŞ"]="AUTO ESCAPE",
     ["OTO FARM"]="AUTO FARM", ["IŞINLANMA"]="TELEPORTATION",
     ["👑  PREMİUM HEADLESS & KORBLOX"]="👑  PREMIUM HEADLESS & KORBLOX",
-    ["👑  PREMİUM HİLECİ TESPİTİ"]="👑  PREMIUM CHEATER DETECTION",
     ["👑  PREMİUM ARAÇLAR"]="👑  PREMIUM TOOLS",
-    ["👑  PREMİUM OTO TOPLAYICI"]="👑  PREMIUM AUTO COLLECTOR",
-    ["👑  PREMİUM SAHTE TAG & RGB İSİM"]="👑  PREMIUM FAKE TAG & RGB NAME",
     ["🚀  PREMİUM FPS ARTIRICI"]="🚀  PREMIUM FPS BOOSTER",
     ["👑  PREMİUM HAREKET"]="👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"]="👑  PREMIUM APPEARANCE",
@@ -585,7 +538,7 @@ local EN_REPLACEMENTS = {
     ["Sağ Bacak"] = "Right Leg",
     ["Yerin Altında Yatay"] = "Horizontal Underground",
     ["Katil Yaklaşınca"] = "When the Murderer Approaches",
-    ["TÜRK TROLL SCRİPTİ"] = "TURKISH TROLL SCRIPT",
+    ["EZRAGOX HUB"] = "EZRAGOX HUB",
     ["BAĞLANDI"] = "CONNECTED",
     ["KULLANICI DOĞRULANDI"] = "USER VERIFIED",
     ["Hazır!"] = "Ready!",
@@ -597,9 +550,7 @@ local EN_REPLACEMENTS = {
     ["İsim yaz (örn: hasan)"] = "Enter a name (e.g. Alex)",
     ["Eşleşen oyuncu yok"] = "No matching players",
     ["Server İçinde"] = "In This Server",
-    ["Genel Kullanıcı"] = "Global User",
     ["İsmin başını yaz, liste süzülür"] = "Type the start of a name to filter the list",
-    ["Roblox kullanıcı adı yaz"] = "Enter a Roblox username",
     ["Şifre"] = "Password",
     ["Devam etmek için yönetim şifresini gir."] = "Enter the admin password to continue.",
     ["YÖNETİM GİRİŞİ"] = "ADMIN LOGIN",
@@ -622,19 +573,16 @@ local EN_REPLACEMENTS = {
     ["Türkçe"] = "Turkish",
     ["Uygula"] = "Apply",
     ["Seçilen Oyuncuyu Kopyala"] = "Copy Selected Player",
-    ["Karakteri Komple Kopyala"] = "Copy Entire Character",
     ["Saç"] = "Hair",
     ["Üst"] = "Top",
     ["Alt"] = "Bottom",
     ["Aksesuar"] = "Accessories",
-    ["Önce bir Roblox kullanıcı adı yaz."] = "Enter a Roblox username first.",
     ["Listeden bir oyuncu seç (ya da adını yaz)."] = "Select a player from the list (or enter their name).",
     ["Bu adda bir Roblox hesabı yok: "] = "No Roblox account exists with this name: ",
     ["Kullanıcı Adı Boş"] = "Username Is Empty",
     ["Kullanıcı Bulunamadı"] = "User Not Found",
     ["Oyuncu Seçilmedi"] = "No Player Selected",
     ["Hedef Seçildi"] = "Target Selected",
-    ["Hedef Bilgisi"] = "Target Information",
     ["Hesap"] = "Account",
     ["Durum"] = "Status",
     ["Lütfen önce yukarıdan hedef oyuncu seçin!"] = "Select a target player above first!",
@@ -682,9 +630,7 @@ local EN_REPLACEMENTS = {
     ["Aynı sunucuya yeniden bağlanılıyor..."] = "Reconnecting to the same server...",
     ["Aktif! Boşta kalsan da atılmazsın."] = "Enabled! You will not be kicked for being idle.",
     ["En yakın paradan başlayıp tek tek toplanacak."] = "Collecting one by one, starting with the nearest item.",
-    ["Şu an eşleşen yok. Yeni spawn olanlar otomatik alınır. İstersen 'Özel İsim' yaz."] = "No matches right now. Newly spawned items will be collected automatically. You can enter a custom name.",
     [" parça toplandı."] = " items collected.",
-    ["Hiç bulunamadı. 'Özel İsim' kutusuna paranın adını yaz (örn: Coin)."] = "Nothing found. Enter the item name in the 'Custom Name' box (e.g. Coin).",
     ["Önce veritabanı gizli anahtarını kaydet."] = "Save the database secret key first.",
     ["Veritabanı adresini kontrol et."] = "Check the database URL.",
     ["Henüz premium verilen hesap yok."] = "No accounts have been granted premium yet.",
@@ -739,16 +685,6 @@ local EN_REPLACEMENTS = {
     ["Sky Etkisiz"] = "Sky Launch Ineffective",
     ["Boşluğa Fırlatıldı"] = "Launched into the Void",
     ["Etkisiz"] = "Ineffective",
-    ["Yanına Çekildi"] = "Pulled to You",
-    ["Kısmen Çekildi"] = "Partially Pulled",
-    ["Çekilemedi"] = "Could Not Pull",
-    ["Sallantı Bitti"] = "Shaking Finished",
-    ["Patlama"] = "Explosion",
-    ["Blok Düştü"] = "Block Dropped",
-    ["Sabitlendi"] = "Frozen",
-    ["Toplu Zıplama"] = "Mass Jump",
-    ["İzleme Aktif"] = "Spectating Enabled",
-    ["İzleme Kapandı"] = "Spectating Disabled",
     ["Işınlandın"] = "Teleported",
     ["Yapışma Aktif"] = "Attachment Enabled",
     ["Yapışma Kapandı"] = "Attachment Disabled",
@@ -818,15 +754,8 @@ local EN_REPLACEMENTS = {
     ["🔭  Görüş Açısı (FOV)"] = "🔭  Field of View (FOV)",
     ["🔍  Kamera Zoom Sınırını Kaldır"] = "🔍  Remove Camera Zoom Limit",
     ["🌙  Gün Saati"] = "🌙  Time of Day",
-    ["🌍  Genel Kullanıcı"] = "🌍  Global User",
     ["🖥️  Server İçinde"] = "🖥️  In This Server",
-    ["Genel Kullanıcı"] = "Global User",
-    ["Roblox kullanıcı adı yaz"] = "Enter Roblox username",
-    ["👑  PREMİUM OTO TOPLAYICI"] = "👑  PREMIUM AUTO COLLECTOR",
-    ["Özel İsim"] = "Custom Name",
-    ["örn: Coin, Gold  (boş = otomatik bul)"] = "e.g. Coin, Gold (blank = auto-detect)",
     ["👑  PREMİUM ARAÇLAR"] = "👑  PREMIUM TOOLS",
-    ["👑  PREMİUM HİLECİ TESPİTİ"] = "👑  PREMIUM CHEATER DETECTION",
     ["👑  PREMİUM HEADLESS & KORBLOX"] = "👑  PREMIUM HEADLESS & KORBLOX",
     ["💀  Headless & Korblox"] = "💀  Headless & Korblox",
     ["Headless: yalnızca gerçek karakter kafan ve yüzü görünmez olur; saç, şapka ve baş aksesuarların yerinde kalır. Korblox: sağ bacak silinir. Yalnızca senin ekranında görünür, diğer oyuncular görmez. Yeniden doğunca otomatik uygulanır; kapatınca eski görünüm geri gelir."] = "Headless: only your actual character head and face become invisible; hair, hats, and head accessories stay. Korblox: the right leg is removed. Only visible on your screen, other players cannot see it. Re-applied on respawn; turning it off restores your original look.",
@@ -843,12 +772,6 @@ local EN_REPLACEMENTS = {
     ["Executor bacak mesh'ini değiştirmeyi desteklemiyor; sağ bacak gizlendi."] = "Your executor does not support changing leg meshes; the right leg was hidden instead.",
     ["Korblox bacağı yüklenemedi (executor desteklemiyor olabilir); sağ bacak gizlendi."] = "Could not load the Korblox leg (your executor may not support it); the right leg was hidden instead.",
     ["Korblox bacağı yükleniyor..."] = "Loading the Korblox leg...",
-    ["🚨  Hileci Tespiti"] = "🚨  Cheater Detection",
-    ["🚨  Hileci Tespiti (Kırmızı HİLE Yazısı)"] = "🚨  Cheater Detection (Red CHEAT Tag)",
-    ["Fly, hız, noclip, spin ve yerin altına girme gibi diğer oyuncuların ekranında görünen hileleri algılar; hile yapan oyuncunun üstüne kırmızı HİLE yazar. ESP gibi sadece kişinin kendi ekranında çalışan hileler dışarıdan görülemez."] = "Detects cheats that are visible to other players such as fly, speed, noclip, spin and going under the map, and writes a red CHEAT tag above the offender. Client-only cheats such as ESP cannot be detected from the outside.",
-    ["Hileci Tespiti"] = "Cheater Detection",
-    ["Aktif! Hile yapan oyuncunun üstünde kırmızı HİLE yazar."] = "Active! A red CHEAT tag appears above players who are cheating.",
-    ["Hile Tespit Edildi"] = "Cheat Detected",
     ["👑  PREMİUM HAREKET"] = "👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"] = "👑  PREMIUM APPEARANCE",
     ["PREMİUM KİLİDİ"] = "PREMIUM LOCK",
@@ -864,7 +787,6 @@ local EN_REPLACEMENTS = {
     ["VERİTABANI GİZLİ ANAHTARI  (sadece bu cihazda saklanır)"] = "DATABASE SECRET KEY (stored on this device only)",
     ["Sadece bu cihazda saklanır"] = "Stored on this device only",
     ["👤  "] = "👤  ",
-    ["Kendi Görünümüme Dön"] = "Return to My Outfit",
     ["Görünümünü Kuşan"] = "Equip Outfit",
     ["Oyuncuyu Ara"] = "Search Player",
     ["Oyuncu Bul"] = "Find Player",
@@ -1253,7 +1175,7 @@ local Intro = (function()
     local FLASH_MIN = AYAR.PARLAK_FLASLAR and 0 or 0.7 -- flaşın en parlak hali
 
     local LOGO_TEXT = "EZRAGOX"
-    local SUB_TEXT = "TÜRK TROLL SCRİPTİ"
+    local SUB_TEXT = "EZRAGOX HUB"
     local LN = #LOGO_TEXT
     local LETTER_W, LETTER_GAP = 60, 4
     local LOGO_W = LN * (LETTER_W + LETTER_GAP) - LETTER_GAP
@@ -1273,7 +1195,7 @@ local Intro = (function()
         {28, "Arayüz hazırlanıyor"},
         {44, "Efektler ayarlanıyor"},
         {60, "Karakter doğrulanıyor"},
-        {76, "Troll araçları senkronize ediliyor"},
+        {76, "Özellikler hazırlanıyor"},
         {90, "Son kontroller yapılıyor"},
         {99, "Hazır!"},
     }
@@ -1292,7 +1214,7 @@ local Intro = (function()
         {2.95, "OK", "arayüz çerçevesi hazır"},
         {3.40, "!!", "erişim anahtarı doğrulanıyor..."},
         {4.10, "OK", "karakter verisi eşleşti"},
-        {4.80, "OK", "troll araçları senkronize"},
+        {4.80, "OK", "özellikler hazır"},
         {5.60, "OK", "erişim onaylandı"},
     }
 
@@ -3001,7 +2923,7 @@ local BrandTagline = new("TextLabel", {
     Size = UDim2.new(1, -190, 0, 16),
     Position = UDim2.new(0, 76, 0, 46),
     BackgroundTransparency = 1,
-    Text = "TÜRK TROLL SCRİPTİ   /   HİLE İŞİ GÖNÜL İŞİ   •   v6.6",
+    Text = "EZRAGOX HUB   /   HİLE İŞİ GÖNÜL İŞİ   •   v6.6",
     TextColor3 = Color3.fromRGB(255, 70, 82),
     TextSize = 11,
     Font = Enum.Font.GothamBold,
@@ -4199,7 +4121,7 @@ local function createTab(name, icon)
     -- Sekme simgeleri ana sayfadaki gibi tek renkli, sade ve net karakterlerdir.
     -- Özellikler: ✦ yıldız, Ayarlar: ☰ liste; Ana Sayfa ⌂ ile aynı sade, tek renkli stil.
     iconLabel.TextColor3 = Color3.fromRGB(255, 75, 85)
-    iconLabel.TextSize = (name == "Troll") and 19 or 17
+    iconLabel.TextSize = 17
 
     -- Özellikler ve Ayarlar simgeleri yazı tipinde kutu çıktığı için çizgi çizgi
     -- (UI parçalarıyla) çizilir: Özellikler = parıltı, Ayarlar = dişli.
@@ -5492,7 +5414,7 @@ local FeaturesPage = createTab("Özellikler", "")
     -- FIRLATMA (1000x GÜÇ)  •  seçili oyuncuyu fizik çarpışmasıyla fırlatır
     -- Not: Diğer oyuncunun karakterinde doğrudan yapılan değişiklikler sunucuya
     -- yansımaz; gerçek etki kendi karakterini hedefin içine ışınlayıp anormal
-    -- derecede yüksek hızla çarptırmaktan gelir (Troll sekmesindeki fling ile
+    -- derecede yüksek hızla çarptırmaktan gelir (ortak fling motoruyla
     -- aynı yöntem, istek üzerine gücü 1000 kat artırılmış hali).
     ---------------------------------------------------------
     -- LOBİ / ÖLÜ DÜZELTMESİ: lobideyken (ya da ölüyken) karakterin çarpışma grubu haritadaki oyuncularla
@@ -5945,7 +5867,7 @@ local FeaturesPage = createTab("Özellikler", "")
         return best
     end
 
-    -- Bir oyuncuya tıklayıp fling yapınca (etiket menüsü / çift tık / Troll sekmesi) ismi otomatik olarak
+    -- Bir oyuncuya tıklayıp fling yapınca (etiket menüsü / çift tık) ismi otomatik olarak
     -- FIRLATMA bölümlerindeki isim kutularına yazılır; fırlatma tuşu artık o oyuncuyu fırlatır.
     Settings.FlingBoxes = Settings.FlingBoxes or {}
     Settings.SetFlingTarget = function(plr)
@@ -5954,6 +5876,11 @@ local FeaturesPage = createTab("Özellikler", "")
         for _, box in ipairs(Settings.FlingBoxes) do
             if box and box.Parent then pcall(setText, box, plr.Name) end
         end
+    end
+    -- Shared target fallback for MM2 and the general Fling panel.
+    Settings.GetSelectedTarget = function()
+        local plr = Settings.FlingPicked
+        return plr and plr.Parent and plr or nil
     end
 
     local function addSelector(page)
@@ -6067,7 +5994,7 @@ local FeaturesPage = createTab("Özellikler", "")
 end)()
 
 ---------------------------------------------------------
--- MURDER MYSTERY 2 SEKMESİ  (Troll sekmesinin üstünde)
+-- MURDER MYSTERY 2 SEKMESİ
 -- Kendi fonksiyonunun içinde çalışır: ana bölümdeki local sayısını artırmaz.
 ---------------------------------------------------------
 ;(function()
@@ -8720,7 +8647,7 @@ end)()
 
     local function currentTarget()
         if mm2Target and mm2Target.Parent then return mm2Target end
-        -- MM2 sekmesinde seçim yoksa Troll sekmesindeki seçili oyuncu kullanılır
+        -- MM2 sekmesinde seçim yoksa ortak seçili oyuncu kullanılır
         local g = Settings.GetSelectedTarget and Settings.GetSelectedTarget()
         if g and g.Parent then return g end
         return nil
@@ -8979,7 +8906,7 @@ end)()
     -- Fling artık ortak modülde (Özellikler sekmesi ile paylaşılır)
     local flingTarget = Settings.FlingKit.fling
 
-    -- Troll sekmesindeki 14. özellik de aynı fırlatmayı kullanır (yalnızca MM2'de var)
+    -- MM2 Fling eylemi ortak fırlatma motorunu kullanır
     Settings.MM2FlingPlayer = function(plr)
         if Settings.SetFlingTarget then Settings.SetFlingTarget(plr) end
         flingTarget(plr)
@@ -12221,385 +12148,6 @@ end)()
             stopPreview()
         end)
 
-        ---------------------------------------------------------
-        -- ŞAKA BOMBASI: yalnızca ŞERİFKEN (silah sendeyken) katile GERÇEKTEN isabet edince envanterdeki şaka bombasını otomatik
-        -- kuşanıp BİR KERE kullanır. Iskalayınca ve katilken atmaz. Bomba, adında bomb / bomba / şaka / prank / joke geçen alettir.
-        ---------------------------------------------------------
-        local BOMB_WORDS = {"bomb", "bomba", "şaka", "saka", "prank", "joke"}
-        local BOMB_TOGGLE = "💣  Katile İsabet Edince Şaka Bombası Kullan"
-        SFX.bombOn = savedOr(BOMB_TOGGLE, false)
-        SFX.bombBusy, SFX.bombLast, SFX.bombWarnAt = false, 0, 0
-
-        local function isBombName(n)
-            if SFX.bombName and n == SFX.bombName then return true end   -- T'den sonra öğrenilen bomba adı
-            n = string.lower(n)
-            for _, w in ipairs(BOMB_WORDS) do
-                if string.find(n, w, 1, true) then return true end
-            end
-            return false
-        end
-
-        local function bombHolders()
-            return {LocalPlayer.Character, LocalPlayer:FindFirstChildOfClass("Backpack")}
-        end
-
-        -- Sadece şerifken (silah sende) çalışır; katilken (bıçak varken) ASLA atmaz
-        local function bombRoleOk()
-            local role = myRole()
-            if role == "Murderer" then return false end
-            if SFX.hasKnife and SFX.hasKnife() then return false end
-            return role == "Sheriff" or hasGun()
-        end
-
-        local function findBomb()
-            local best
-            for _, holder in ipairs(bombHolders()) do
-                if holder then
-                    for _, t in ipairs(holder:GetChildren()) do
-                        if t:IsA("Tool") and isBombName(t.Name) then
-                            best = best or t
-                            local n = string.lower(t.Name)
-                            local prank = string.find(n, "prank", 1, true) or string.find(n, "joke", 1, true)
-                                or string.find(n, "şaka", 1, true) or string.find(n, "saka", 1, true)
-                            if prank and string.find(n, "bomb", 1, true) then return t end   -- tam eşleşme öncelikli
-                        end
-                    end
-                end
-            end
-            return best
-        end
-
-        -- Sanal tuş basışı (önce VirtualInputManager, yoksa executor'ın keypress'i)
-        local function tapKey(kc, vk, useExecutorKey)
-            if useExecutorKey then
-                if keypress and keyrelease then
-                    pcall(keypress, vk)
-                    task.wait(0.03)
-                    pcall(keyrelease, vk)
-                end
-                return
-            end
-            pcall(function()
-                local vim = game:GetService("VirtualInputManager")
-                vim:SendKeyEvent(true, kc, false, game)
-                task.wait(0.03)
-                vim:SendKeyEvent(false, kc, false, game)
-            end)
-        end
-
-        local function waitForBomb(sec)
-            local t0 = os.clock()
-            local found = findBomb()
-            while alive and not found and os.clock() - t0 < sec do
-                task.wait()
-                found = findBomb()
-            end
-            return found
-        end
-
-        -- Şaka bombasının sırası (hotbar numarası) sabit değil, bazen değişiyor.
-        -- Bu yüzden T'den sonra bomba şu sırayla bulunur:
-        --   1) T'den önceki alet listesi kaydedilir, T'den sonra listeye YENİ eklenen alet = şaka bombası
-        --   2) Bulunamazsa 1-9 ve 0 tuşları sırayla denenir (önce son bulunan sıra, sonra 7); elde bomba çıkınca durur
-        -- Bulunan sıra ve alet adı hatırlanır (SFX.bombSlot / SFX.bombName), sonraki seferde ilk o denenir.
-        local BOMB_SLOTS = {
-            {Enum.KeyCode.One, 0x31}, {Enum.KeyCode.Two, 0x32}, {Enum.KeyCode.Three, 0x33},
-            {Enum.KeyCode.Four, 0x34}, {Enum.KeyCode.Five, 0x35}, {Enum.KeyCode.Six, 0x36},
-            {Enum.KeyCode.Seven, 0x37}, {Enum.KeyCode.Eight, 0x38}, {Enum.KeyCode.Nine, 0x39},
-            {Enum.KeyCode.Zero, 0x30},
-        }
-
-        -- Şu an karakterde / çantada olan tüm aletlerin kaydı
-        local function toolSnapshot()
-            local snap = {}
-            for _, holder in ipairs(bombHolders()) do
-                if holder then
-                    for _, t in ipairs(holder:GetChildren()) do
-                        if t:IsA("Tool") then snap[t] = true end
-                    end
-                end
-            end
-            return snap
-        end
-
-        -- T'den sonra gelen aletler arasından yalnızca adı şaka bombasıyla eşleşeni kabul et.
-        -- Böylece envantere eklenen silah/başka araç yanlışlıkla bomba sanılmaz.
-        local function findNewBomb(before)
-            local b = findBomb()
-            if b then return b end
-            for _, holder in ipairs(bombHolders()) do
-                if holder then
-                    for _, t in ipairs(holder:GetChildren()) do
-                        if t:IsA("Tool") and not before[t] and isBombName(t.Name) then
-                            SFX.bombName = t.Name
-                            return t
-                        end
-                    end
-                end
-            end
-            return nil
-        end
-
-        local function waitForNewBomb(before, sec)
-            local t0 = os.clock()
-            local found = findNewBomb(before)
-            while alive and not found and os.clock() - t0 < sec do
-                task.wait()
-                found = findNewBomb(before)
-            end
-            return found
-        end
-
-        -- Şu an ELDE tutulan alet bomba mı? (adı bombaya benziyor ya da T'den sonra gelen yeni alet)
-        local function equippedBomb(before)
-            local char = LocalPlayer.Character
-            if not char then return nil end
-            for _, t in ipairs(char:GetChildren()) do
-                if t:IsA("Tool") and (isBombName(t.Name) or not before[t]) then return t end
-            end
-            return nil
-        end
-
-        -- Hotbar tuşlarını sırayla dener; bomba eline geçtiği an durur
-        local function scanSlots(before, useExecutorKey)
-            local order, seen = {}, {}
-            local function add(i)
-                if i and not seen[i] then seen[i] = true; order[#order + 1] = i end
-            end
-            add(SFX.bombSlot)   -- en son bombanın bulunduğu sıra
-            add(7)              -- eski varsayılan
-            for i = 1, #BOMB_SLOTS do add(i) end
-            for _, i in ipairs(order) do
-                if not alive then return nil end
-                local slot = BOMB_SLOTS[i]
-                tapKey(slot[1], slot[2], useExecutorKey)
-                local t0, found = os.clock(), nil
-                while alive and os.clock() - t0 < 0.15 do
-                    found = equippedBomb(before)
-                    if found then break end
-                    task.wait()
-                end
-                if found then
-                    SFX.bombSlot = i
-                    SFX.bombName = found.Name
-                    return found
-                end
-            end
-            -- hiçbir sırada bomba çıkmadı: yanlışlıkla eline alınan aleti geri bırak
-            local hum = myHum()
-            if hum then pcall(function() hum:UnequipTools() end) end
-            return nil
-        end
-
-        -- Açık menüde adı / yazısı bombaya benzeyen bir düğme varsa ona tıklar
-        local function clickBombGui()
-            local pg = LocalPlayer:FindFirstChildOfClass("PlayerGui")
-            if not pg then return false end
-            for _, d in ipairs(pg:GetDescendants()) do
-                if (d:IsA("TextButton") or d:IsA("ImageButton")) and d.Visible then
-                    local label = d.Name
-                    if d:IsA("TextButton") then label = label .. " " .. d.Text end
-                    if isBombName(label) then
-                        local clicked = false
-                        if getconnections then
-                            for _, ev in ipairs({"MouseButton1Click", "Activated", "MouseButton1Down"}) do
-                                local okC, list = pcall(getconnections, d[ev])
-                                if okC and list then
-                                    for _, c in ipairs(list) do
-                                        pcall(function() c:Fire() end)
-                                        clicked = true
-                                    end
-                                end
-                            end
-                        end
-                        if not clicked and firesignal then
-                            pcall(firesignal, d.MouseButton1Click)
-                            clicked = true
-                        end
-                        if clicked then return true end
-                    end
-                end
-            end
-            return false
-        end
-
-        -- Sanal fare basışını takip et; bırakma işlemi hata alsa bile ayrıca kurtarılabilir.
-        local bombMouseState = {vim = nil, pos = nil, down = false}
-        SFX.bombMouseRelease = function()
-            if not bombMouseState.down then return true end
-            local released = false
-            if bombMouseState.vim and bombMouseState.pos then
-                released = pcall(function()
-                    bombMouseState.vim:SendMouseButtonEvent(
-                        bombMouseState.pos.X, bombMouseState.pos.Y, 0, false, game, 1
-                    )
-                end)
-            end
-            if not released and mouse1release then
-                released = pcall(mouse1release)
-            end
-            -- Bırakma doğrulanmadan durumu temizleme; tekrar kurtarma denemesi mümkün kalsın.
-            if released then bombMouseState.down = false end
-            return released
-        end
-
-        -- Pencere odağı kaybolursa sanal fare tuşunu açık bırakma.
-        bind(UserInputService.WindowFocusReleased, function()
-            pcall(SFX.bombMouseRelease)
-        end)
-
-        bind(UserInputService.WindowFocused, function()
-            if bombMouseState.down then pcall(SFX.bombMouseRelease) end
-        end)
-
-        -- Basma başarılı olduktan sonra bırakma ayrı ve korumalı çalışır.
-        SFX.bombClick = function()
-            local pos
-            local vim
-            local pressed = pcall(function()
-                pos = UserInputService:GetMouseLocation()
-                vim = game:GetService("VirtualInputManager")
-                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-            end)
-            if pressed then
-                bombMouseState.vim, bombMouseState.pos, bombMouseState.down = vim, pos, true
-                pcall(task.wait, 0.02)
-                return SFX.bombMouseRelease()
-            end
-            if mouse1click then
-                local ok = pcall(mouse1click)
-                if ok then return true end
-            end
-            return false
-        end
-
-        -- Eline aldıktan sonra tıklamadan önceki bekleme (sn). Bomba atılmıyorsa artır (örn. 0.08), daha da hızlı istersen 0.02 yap.
-        local BOMB_READY_DELAY = 0.04
-
-        local function useBomb()
-            if os.clock() - SFX.bombLast < 1 then return end
-            -- Atış sırasında başlatılan hazırlık (T) sürüyorsa bitmesini bekle (T'ye iki kere basılmasın)
-            local tw = os.clock()
-            while SFX.bombPrepRun and os.clock() - tw < 1.3 do task.wait() end
-            local tool = findBomb()
-            -- MM2'de şaka bombası envantere (alet çantasına) T tuşuyla eklenir: çantada yoksa T'ye bas,
-            -- bombanın gelmesini bekle (önce sanal tuş, olmazsa executor tuşu; her isabette en fazla bir kez dener)
-            if not tool and os.clock() - (SFX.bombTAt or 0) > 3 then
-                local h0 = myHum()
-                if h0 and h0.Health > 0 then
-                    SFX.bombTAt = os.clock()
-                    -- 1) T'den önce alet listesini kaydet, T'ye bas → yeni gelen alet şaka bombasıdır (sırası önemli değil)
-                    local before = toolSnapshot()
-                    tapKey(Enum.KeyCode.T, 0x54, false)
-                    tool = waitForNewBomb(before, 1.2)
-                    -- 2) Menüde bomba düğmesi varsa ona tıkla
-                    if not tool and clickBombGui() then tool = waitForNewBomb(before, 1.0) end
-                    -- Hotbar sırası kullanıcıya göre değişebildiğinden 1-9/0 tuşları taranmaz.
-                    -- Bomba bulunduğunda aşağıda Tool referansıyla doğrudan kuşanılır.
-                end
-            end
-            if not tool then
-                if os.clock() - SFX.bombWarnAt > 8 then
-                    SFX.bombWarnAt = os.clock()
-                    local names = {}
-                    for _, holder in ipairs(bombHolders()) do
-                        if holder then
-                            for _, t in ipairs(holder:GetChildren()) do
-                                if t:IsA("Tool") then names[#names + 1] = t.Name end
-                            end
-                        end
-                    end
-                    notify("Şaka Bombası", "T'ye basıldı ama şaka bombası çantaya gelmedi. Aletlerin: " .. (#names > 0 and table.concat(names, ", ") or "yok"), 6)
-                end
-                return
-            end
-            local hum = myHum()
-            if not hum or hum.Health <= 0 then return end
-            SFX.bombLast = os.clock()
-            local char = LocalPlayer.Character
-            if tool.Parent ~= char then pcall(function() hum:EquipTool(tool) end) end
-            local t0 = os.clock()
-            while alive and tool.Parent ~= char and os.clock() - t0 < 1 do task.wait() end
-            if tool.Parent ~= char then return end
-            task.wait(BOMB_READY_DELAY)   -- bomba betiği hazır olsun
-            -- Eline aldıktan sonra BİR KERE tıkla → bomba atılır (tool:Activate() atmıyordu)
-            if not SFX.bombClick() then
-                pcall(function() tool:Activate() end)   -- tıklama gönderilemezse yedek yol
-            end
-        end
-
-        -- HIZLANDIRMA: Atış / bıçak hareketi başlar başlamaz (isabet beklenmeden) T'ye basıp bombayı çantaya ekler.
-        -- Böylece isabet olduğunda bomba zaten hazırdır; sadece eline alıp tıklanır. Bomba eline ALINMAZ (silahı bırakmaz).
-        local function prepBomb()
-            if not SFX.bombOn or SFX.bombPrepRun then return end
-            if not bombRoleOk() then return end
-            if os.clock() - (SFX.bombPrepAt or 0) < 3 then return end
-            if findBomb() then return end
-            local h0 = myHum()
-            if not h0 or h0.Health <= 0 then return end
-            SFX.bombPrepRun, SFX.bombPrepAt = true, os.clock()
-            pcall(function()
-                local before = toolSnapshot()
-                tapKey(Enum.KeyCode.T, 0x54, false)
-                waitForNewBomb(before, 1.2)
-            end)
-            SFX.bombPrepRun = false
-        end
-
-        -- Her atıştan sonra katilin canına bakar: can düştü ya da öldüyse = isabet → bombayı kullan
-        local function bombWatch()
-            if SFX.bombBusy then return end
-            if not bombRoleOk() then return end
-            local mp
-            for name, info in pairs(roleCache) do
-                if info.Role == "Murderer" and not info.Dead then
-                    local p = Players:FindFirstChild(name)
-                    if p and p ~= LocalPlayer then mp = p break end
-                end
-            end
-            if not mp then
-                pcall(fetchRoles)
-                for name, info in pairs(roleCache) do
-                    if info.Role == "Murderer" and not info.Dead then
-                        local p = Players:FindFirstChild(name)
-                        if p and p ~= LocalPlayer then mp = p break end
-                    end
-                end
-            end
-            if not mp then return end
-            local ch = mp.Character
-            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if not hum or hum.Health <= 0 then return end
-            SFX.bombBusy = true
-            local h0, t0 = hum.Health, os.clock()
-            local hit = false
-            -- Kurşun sunucuda anında işlenir: isabet varsa katilin canı ping süresi içinde düşer. Pencere kısa tutulur ki
-            -- ıskalayıp sonra başka sebepten (başka oyuncu / tur sonu) düşen can "isabet" sayılmasın.
-            local limit = math.clamp(0.3 + getPingSeconds() * 1.5, 0.45, 1.3)
-            while alive and mp.Parent and os.clock() - t0 < limit do
-                if hum.Health < h0 - 0.01 or hum.Health <= 0 or not hum.Parent or mp.Character ~= ch then
-                    hit = true
-                    break
-                end
-                task.wait()
-            end
-            if hit then pcall(useBomb) end
-            SFX.bombBusy = false
-        end
-
-        local baseShot = SFX.shot
-        SFX.shot = function(...)
-            if SFX.bombOn then task.spawn(prepBomb) end
-            if SFX.bombOn and not SFX.bombBusy then task.spawn(bombWatch) end
-            return baseShot(...)
-        end
-
-        createToggle(MM2Page, BOMB_TOGGLE, SFX.bombOn, function(v)
-            SFX.bombOn = v
-            if v then
-                notify("Şaka Bombası", "Aktif! Şerifken katili vurduğun anda T'ye basılır, şaka bombası hangi sıradaysa otomatik bulunup kuşanılır ve bir kere tıklanır. Iskalayınca ya da katilken atmaz.", 4)
-            end
-        end)
     end)()
 
     createSection(MM2Page, "DÜŞEN SİLAH")
@@ -17814,13 +17362,12 @@ end)()
     end)
 end)()
 
-local TrollPage = createTab("Troll", "ツ")
 local PremiumPage, PremiumTab = createTab("Premium", "")
 ;(function()
     if not setfpscap then return end
     task.spawn(function()
         while alive do
-            local cap = 9999
+            local cap = 144
             pcall(function()
                 local fx = Settings.FPSX
                 if fx and fx.level and fx.level >= 3 and tonumber(fx.cap) then cap = fx.cap end
@@ -19442,7 +18989,7 @@ end
 -- Kademe 3 diğer ikisinin hepsini zaten içerir; ayrıca açmaya gerek yoktur.
 -- Yeni yüklenen her nesneye (harita değişimi dahil) anında uygulanır; kapatınca her şey eski haline döner.
 do
-    local FPSX = {flags = {fps = false, ultra = false, pro = false}, level = 0, cap = 360}
+    local FPSX = {flags = {fps = false, ultra = false, pro = false}, level = 0, cap = 144}
     Settings.FPSX = FPSX
     local saved = setmetatable({}, {__mode = "k"})       -- [nesne] = {özellik = eskiDeğer}
     local hooked = setmetatable({}, {__mode = "k"})
@@ -19838,14 +19385,14 @@ do
         end
     end
 
-    -- Zaman bütçeli tarama: kare başına ~6 ms → büyük haritada bile takılmadan ve hızlı biter
+    -- Zaman bütçeli tarama: kare başına en fazla ~2 ms; büyük harita taraması daha az takılma yaratır.
     local function sweep(my, lvl)
         local list = workspace:GetDescendants()
         local t0 = os.clock()
         for i = 1, #list do
             if my ~= token or not alive then return end
             pcall(apply, list[i], lvl)
-            if os.clock() - t0 > 0.006 then task.wait() t0 = os.clock() end
+            if os.clock() - t0 > 0.002 then task.wait() t0 = os.clock() end
         end
     end
 
@@ -19857,10 +19404,10 @@ do
                 pcall(function() o[prop] = v end)
             end
             saved[o] = nil
-            if os.clock() - t0 > 0.006 then task.wait() t0 = os.clock() end
+            if os.clock() - t0 > 0.002 then task.wait() t0 = os.clock() end
         end
-        -- FPS modları kapanırken 60 FPS sınırı dayatma; destekleniyorsa sınırı serbest bırak.
-        if setfpscap and FPSX.level < 3 then pcall(setfpscap, 9999) end
+        -- FPS modları kapanınca varsayılan 144 FPS sınırına dön.
+        if setfpscap and FPSX.level < 3 then pcall(setfpscap, 144) end
         if FPSX.level == 0 then
             local existing = Lighting:FindFirstChild("EZRAGOX_Darken")
             if existing then pcall(function() existing:Destroy() end) end
@@ -19872,7 +19419,7 @@ do
     end
 
     function FPSX.setCap(v)
-        FPSX.cap = math.floor(v)
+        FPSX.cap = math.clamp(math.floor(tonumber(v) or 144), 60, 240)
         if FPSX.level >= 3 and setfpscap then pcall(setfpscap, FPSX.cap) end
     end
 
@@ -20469,667 +20016,6 @@ do
     end)
 end
 
--- TROLL
-createSection(TrollPage, "HEDEF OYUNCU SEÇİMİ VE ARAMA")
-
-do
-local selectedTargetPlayer = nil
--- MM2 sekmesi, buradaki seçili oyuncuyu (seçim yapılmadıysa) kullanabilsin diye köprü
-Settings.GetSelectedTarget = function() return selectedTargetPlayer end
-
-local dropdownRow, dropdownSt = baseRow(TrollPage, "Frame", 48)
-rowLabel(dropdownRow, "Oyuncu Ara / Seç")
-
-local selectBtn = new("TextBox", {
-    AnchorPoint = Vector2.new(1, 0.5),
-    Position = UDim2.new(1, -12, 0.5, 0),
-    Size = UDim2.new(0, 180, 0, 32),
-    BackgroundColor3 = Color3.fromRGB(28, 34, 54),
-    Text = "",
-    PlaceholderText = "İsim yaz (örn: hasan)",
-    PlaceholderColor3 = Color3.fromRGB(120, 134, 170),
-    TextColor3 = Color3.fromRGB(220, 230, 245),
-    TextSize = 12,
-    Font = Enum.Font.GothamBold,
-    ClearTextOnFocus = false,
-    ZIndex = 4,
-}, dropdownRow)
-corner(selectBtn, 8)
-stroke(selectBtn, 1, Color3.fromRGB(55, 65, 95), 0.3)
-
-local DropdownListFrame = new("ScrollingFrame", {
-    LayoutOrder = nextOrder(TrollPage),
-    Size = UDim2.new(1, 0, 0, 0),
-    BackgroundColor3 = Color3.fromRGB(15, 18, 28),
-    BackgroundTransparency = 0.05,
-    BorderSizePixel = 0,
-    ScrollBarThickness = 3,
-    CanvasSize = UDim2.new(0, 0, 0, 0),
-    AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    Visible = false,
-    ZIndex = 20,
-}, TrollPage)
-corner(DropdownListFrame, 10)
-stroke(DropdownListFrame, 1, Color3.fromRGB(60, 75, 110), 0.2)
-new("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, DropdownListFrame)
-new("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, DropdownListFrame)
-
--- Listede fareyle üzerine gelinen oyuncunun karakteri sağdaki önizlemede gösterilir;
--- hiçbir oyuncunun üzerinde değilken kendi karakterim görünür.
-local hoverToken = 0
-local shownPlayer = nil   -- nil = kendi karakterim
-local function previewPlayer(plr)
-    Settings.PlayerPreview(plr)
-end
-
-bind(DropdownListFrame:GetPropertyChangedSignal("Visible"), function()
-    if not DropdownListFrame.Visible then previewPlayer(nil) end
-end)
-bind(TrollPage:GetPropertyChangedSignal("Visible"), function()
-    if not TrollPage.Visible then previewPlayer(nil) end
-end)
-
-local function updatePlayerDropdown(filterText)
-    previewPlayer(nil)
-    for _, ch in ipairs(DropdownListFrame:GetChildren()) do
-        if ch:IsA("TextButton") then ch:Destroy() end
-    end
-
-    local matchCount = 0
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then
-            local displayName = string.lower(plr.DisplayName)
-            local name = string.lower(plr.Name)
-            local filter = string.lower(filterText or "")
-
-            if filter == "" or string.sub(name, 1, #filter) == filter or string.sub(displayName, 1, #filter) == filter or string.find(name, filter, 1, true) then
-                matchCount = matchCount + 1
-                local pBtn = new("TextButton", {
-                    Size = UDim2.new(1, 0, 0, 36),
-                    BackgroundColor3 = Color3.fromRGB(22, 27, 42),
-                    BackgroundTransparency = 0.2,
-                    AutoButtonColor = false,
-                    Text = "",
-                    ZIndex = 21,
-                }, DropdownListFrame)
-                corner(pBtn, 8)
-                ctaFx(pBtn, {radius = 8, colors = false})
-
-                -- Üzerine gelince: satırı parlat + oyuncunun karakterini sağda göster
-                pBtn.MouseEnter:Connect(function()
-                    tween(pBtn, 0.12, {BackgroundTransparency = 0})
-                    previewPlayer(plr)
-                end)
-                pBtn.MouseLeave:Connect(function()
-                    tween(pBtn, 0.18, {BackgroundTransparency = 0.2})
-                    previewPlayer(nil)
-                end)
-
-                local avImg = new("ImageLabel", {
-                    Position = UDim2.new(0, 4, 0, 2),
-                    Size = UDim2.new(0, 32, 0, 32),
-                    BackgroundTransparency = 1,
-                    ZIndex = 22,
-                }, pBtn)
-                pill(avImg)
-
-                task.spawn(function()
-                    pcall(function()
-                        local thumb = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-                        avImg.Image = thumb
-                    end)
-                end)
-
-                new("TextLabel", {
-                    Position = UDim2.new(0, 42, 0, 0),
-                    Size = UDim2.new(1, -45, 1, 0),
-                    BackgroundTransparency = 1,
-                    Text = plr.DisplayName .. " (@" .. plr.Name .. ")",
-                    TextColor3 = Color3.new(1, 1, 1),
-                    TextSize = 12,
-                    Font = Enum.Font.GothamMedium,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    ZIndex = 22,
-                }, pBtn)
-
-                pBtn.MouseButton1Click:Connect(function()
-                    playClickSound()
-                    previewPlayer(nil)
-                    selectedTargetPlayer = plr
-                    setText(selectBtn, plr.Name)
-                    DropdownListFrame.Visible = false
-                    DropdownListFrame.Size = UDim2.new(1, 0, 0, 0)
-                    notify("Hedef Seçildi", plr.Name .. " hedef olarak belirlendi.", 2)
-                end)
-            end
-        end
-    end
-
-    if matchCount > 0 then
-        DropdownListFrame.Visible = true
-        tween(DropdownListFrame, 0.2, {Size = UDim2.new(1, 0, 0, math.min(matchCount * 40 + 12, 160))})
-    else
-        DropdownListFrame.Visible = false
-        DropdownListFrame.Size = UDim2.new(1, 0, 0, 0)
-    end
-end
-
-bind(selectBtn.Focused, function()
-    updatePlayerDropdown(selectBtn.Text)
-end)
-
-bind(selectBtn:GetPropertyChangedSignal("Text"), function()
-    if selectBtn:IsFocused() then
-        updatePlayerDropdown(selectBtn.Text)
-    end
-end)
-
-createSection(TrollPage, Settings.MM2FlingPlayer and "AKTİF TROLL ÖZELLİKLERİ (12 ADET)" or "AKTİF TROLL ÖZELLİKLERİ (11 ADET)")
-
-local attachedActive = false
-local attachConnection = nil
-local attachToggleObj
-attachToggleObj = createToggle(TrollPage, "🔗  1. Seçilen Kişiye Yapış", false, function(v)
-    attachedActive = v
-    if attachedActive then
-        if not selectedTargetPlayer or not selectedTargetPlayer.Parent then
-            notify("Hata", "Lütfen önce yukarıdan hedef oyuncu seçin!", 3)
-            attachedActive = false
-            task.defer(function() attachToggleObj.Set(false, true) end)
-            return
-        end
-        notify("Yapışma Aktif", selectedTargetPlayer.Name .. " adlı oyuncuya yapışılıyor!", 3)
-        attachConnection = RunService.Heartbeat:Connect(function()
-            if not attachedActive then return end
-            pcall(function()
-                local myChar = LocalPlayer.Character
-                local targetChar = selectedTargetPlayer.Character
-                if myChar and targetChar then
-                    local myHrp = myChar:FindFirstChild("HumanoidRootPart")
-                    local targetHrp = targetChar:FindFirstChild("HumanoidRootPart")
-                    if myHrp and targetHrp then
-                        myHrp.CFrame = targetHrp.CFrame * CFrame.new(0, 0, 0)
-                        myHrp.Velocity = Vector3.new(0, 0, 0)
-                    end
-                end
-            end)
-        end)
-    else
-        if attachConnection then attachConnection:Disconnect(); attachConnection = nil end
-        notify("Yapışma Kapandı", "Oyuncudan ayrıldınız.", 2)
-    end
-end)
-
-local stickActive = false
-local stickConnection = nil
-local stickToggleObj
-local function tryNetworkOwner(part)
-    -- Çoğu executor/oyunda bu çalışmaz (ağ sahipliği sunucuya aittir),
-    -- bazılarında çalışabileceği için zararsızca deneniyor.
-    pcall(function() part:SetNetworkOwner(LocalPlayer) end)
-end
-stickToggleObj = createToggle(TrollPage, "📎  1b. Oyuncuyu Kendine Yapıştır", false, function(v)
-    stickActive = v
-    if stickActive then
-        if not selectedTargetPlayer or not selectedTargetPlayer.Parent then
-            notify("Hata", "Lütfen önce yukarıdan hedef oyuncu seçin!", 3)
-            stickActive = false
-            task.defer(function() stickToggleObj.Set(false, true) end)
-            return
-        end
-        if attachedActive then attachToggleObj.Set(false) end
-        notify("Yapıştırma Aktif", selectedTargetPlayer.Name .. " sana yapıştırılıyor!", 3)
-        local triedOwner = false
-        stickConnection = RunService.Heartbeat:Connect(function()
-            if not stickActive then return end
-            pcall(function()
-                local target = selectedTargetPlayer
-                local myChar = LocalPlayer.Character
-                local targetChar = target and target.Character
-                if myChar and targetChar then
-                    local myHrp = myChar:FindFirstChild("HumanoidRootPart")
-                    local tHrp = targetChar:FindFirstChild("HumanoidRootPart")
-                    if myHrp and tHrp then
-                        if not triedOwner then
-                            triedOwner = true
-                            tryNetworkOwner(tHrp)
-                        end
-                        local goal = myHrp.CFrame * CFrame.new(0, 0, -3)
-                        tHrp.CFrame = goal
-                        tHrp.AssemblyLinearVelocity = myHrp.AssemblyLinearVelocity
-                        tHrp.AssemblyAngularVelocity = Vector3.zero
-                    end
-                end
-            end)
-        end)
-    else
-        if stickConnection then stickConnection:Disconnect() stickConnection = nil end
-        notify("Yapıştırma Kapandı", "Oyuncu serbest bırakıldı.", 2)
-    end
-end)
-bind(Players.PlayerRemoving, function(plr)
-    if plr == selectedTargetPlayer and stickActive then stickToggleObj.Set(false, true) end
-end)
-
----------------------------------------------------------
--- TROLL ÇEKİRDEĞİ
--- Not: Başka oyuncunun karakterinde doğrudan yapılan değişiklikler
--- (CFrame, Anchored, Jump, BodyVelocity...) sunucuya yansımaz, sadece
--- senin ekranında görünür. Diğer oyunculara gerçekten etki eden tek
--- yol fizik çarpışmasıdır: kendi karakterini hedefin içine ışınlayıp
--- yüksek hızla çarptırmak. Fling / Sky / Sallantı bu yöntemi kullanır.
----------------------------------------------------------
-local Troll = {busy = false, fovBusy = false}
-
-function Troll.parts(plr)
-    local char = plr and plr.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    return char, hrp, hum
-end
-
-function Troll.require()
-    if not selectedTargetPlayer or not selectedTargetPlayer.Parent then
-        notify("Hata", "Lütfen önce bir hedef oyuncu seçin!", 3)
-        return false
-    end
-    local _, hrp, hum = Troll.parts(selectedTargetPlayer)
-    if not hrp or not hum or hum.Health <= 0 then
-        notify("Hata", "Hedefin karakteri şu an yok veya ölü.", 3)
-        return false
-    end
-    return true
-end
-
-function Troll.flat(a, b)
-    return Vector3.new(a.X - b.X, 0, a.Z - b.Z).Magnitude
-end
-
--- mode: "fling" | "sky" | "shake" | "pull"
-function Troll.attack(mode)
-    if Troll.busy then
-        notify("Bekle", "Önceki işlem hâlâ sürüyor.", 2)
-        return
-    end
-    if not Troll.require() then return end
-
-    local target = selectedTargetPlayer
-    local myChar, myHrp, myHum = Troll.parts(LocalPlayer)
-    if not myHrp or not myHum or myHum.Health <= 0 then
-        notify("Hata", "Kendi karakterin hazır değil.", 3)
-        return
-    end
-
-    if mode == "pull" then
-        local _, th = Troll.parts(target)
-        if th and (th.Position - myHrp.Position).Magnitude < 8 then
-            notify("Zaten Yakın", target.Name .. " zaten yanında.", 2)
-            return
-        end
-    end
-
-    Troll.busy = true
-    -- "Yapış" açıksa saldırıyla çakışmasın
-    if attachedActive then attachToggleObj.Set(false) end
-
-    task.spawn(function()
-        local cam = workspace.CurrentCamera
-        local oldCF = myHrp.CFrame
-        local oldFallen = workspace.FallenPartsDestroyHeight
-        local duration = (mode == "fling") and 3 or ((mode == "sky") and 2.5 or ((mode == "space") and 6 or ((mode == "pull") and 4 or 2)))
-        local hit = false
-        local home = oldCF.Position
-        local startDist = 0
-        do
-            local _, th0 = Troll.parts(target)
-            if th0 then startDist = Troll.flat(th0.Position, home) end
-        end
-
-        -- Fırlayınca boşluğa düşüp ölmemek için
-        pcall(function() workspace.FallenPartsDestroyHeight = -math.huge end)
-        pcall(function()
-            myHrp.Anchored = false
-            local _, _, tHum0 = Troll.parts(target)
-            if cam and tHum0 then cam.CameraSubject = tHum0 end
-        end)
-
-        -- lobi / ölü: çarpışma grubunu hedefle eşitle (aşağıda geri alınır)
-        local restoreCG
-        pcall(function()
-            local _, tH0 = Troll.parts(target)
-            if tH0 and Settings.SyncCollisionGroup then restoreCG = Settings.SyncCollisionGroup(myChar, tH0) end
-        end)
-
-        pcall(function()
-            local startT = os.clock()
-            local angle = 0
-            while alive and os.clock() - startT < duration do
-                local _, tHrp, tHum = Troll.parts(target)
-                if not tHrp or not tHum or tHum.Health <= 0 then break end
-                if not myHrp.Parent or myHum.Health <= 0 then break end
-
-                angle = angle + 100
-                -- Hedef yürüyorsa gideceği yöne doğru önden git
-                local lead = tHum.MoveDirection * math.min(tHrp.AssemblyLinearVelocity.Magnitude, 40) / 1.25
-
-                local offset, lin, rot, spin
-                if mode == "fling" then
-                    -- DİKEY FLING: hedefin tam üstünden, yalnızca aşağı hız, dönme yok → yandakiler savrulmaz
-                    local l2 = Vector3.new(lead.X, 0, lead.Z)
-                    if l2.Magnitude > 4 then l2 = l2.Unit * 4 end
-                    offset = CFrame.new(0, 2, 0) + l2
-                    lin = Vector3.new(0, -9e8, 0)
-                    rot = Vector3.zero
-                    spin = CFrame.new()
-                elseif mode == "sky" then
-                    offset = CFrame.new(0, 2, 0) + lead
-                    lin = Vector3.new(0, -9e5, 0)
-                    rot = Vector3.zero
-                    spin = CFrame.new()
-                elseif mode == "space" then
-                    -- Sürekli artan, çok güçlü dikey itiş: hedefi haritanın çok üstüne,
-                    -- adeta uzaya kadar fırlatmayı hedefler.
-                    local t = os.clock() - startT
-                    offset = CFrame.new(0, 2, 0) + lead
-                    lin = Vector3.new(0, -(1.2e6 + t * 4e5), 0)
-                    rot = Vector3.zero
-                    spin = CFrame.new()
-                elseif mode == "pull" then
-                    -- Hedefin arkasından, benim durduğum yere doğru itelerek çek
-                    local toHome = Vector3.new(home.X - tHrp.Position.X, 0, home.Z - tHrp.Position.Z)
-                    if toHome.Magnitude < 8 then
-                        hit = true
-                        break
-                    end
-                    local dir = toHome.Unit
-                    offset = CFrame.new(-dir * 1.2 + Vector3.new(0, 0.2, 0))
-                    lin = dir * 150 + Vector3.new(0, 12, 0)
-                    rot = Vector3.zero
-                    spin = CFrame.new()
-                else -- shake
-                    local a = math.rad(angle * 4)
-                    offset = CFrame.new(math.sin(a) * 0.8, 0, math.cos(a) * 0.8)
-                    lin = Vector3.new(math.sin(a) * 60, 0, math.cos(a) * 60)
-                    rot = Vector3.new(0, 400, 0)
-                    spin = CFrame.new()
-                end
-
-                myChar:PivotTo(CFrame.new(tHrp.Position) * offset * spin)
-                myHrp.AssemblyLinearVelocity = lin
-                myHrp.AssemblyAngularVelocity = rot
-                task.wait()
-
-                -- Hedef çok hızlandıysa fırlamış demektir
-                if (mode == "fling" or mode == "sky" or mode == "space") and tHrp.AssemblyLinearVelocity.Magnitude > 500 then
-                    hit = true
-                    break
-                end
-            end
-        end)
-
-        if restoreCG then pcall(restoreCG) end
-
-        -- Kendi karakterini eski yerine güvenle geri götür
-        for _ = 1, 20 do
-            if not myHrp.Parent then break end
-            pcall(function()
-                myChar:PivotTo(oldCF)
-                myHrp.AssemblyLinearVelocity = Vector3.zero
-                myHrp.AssemblyAngularVelocity = Vector3.zero
-            end)
-            task.wait()
-        end
-        pcall(function() workspace.FallenPartsDestroyHeight = oldFallen end)
-        pcall(function()
-            if cam and myHum.Parent then cam.CameraSubject = myHum end
-        end)
-        Troll.busy = false
-
-        local name = target.Name
-        if mode == "fling" then
-            if hit then
-                notify("Fling Başarılı", name .. " fırlatıldı!", 3)
-            else
-                notify("Fling Etkisiz", name .. " fırlamadı; oyun fling'e karşı korumalı olabilir.", 4)
-            end
-        elseif mode == "sky" then
-            if hit then
-                notify("Aşağı Fırlatıldı", name .. " aşağıya (boşluğa) fırlatıldı!", 3)
-            else
-                notify("Etkisiz", name .. " aşağı gitmedi; oyun çarpışmaya karşı korumalı olabilir.", 4)
-            end
-        elseif mode == "space" then
-            if hit then
-                notify("Boşluğa Fırlatıldı", name .. " maksimum güçle aşağı fırlatıldı!", 3)
-            else
-                notify("Etkisiz", name .. " yerinden oynamadı; bu oyun çarpışma fiziğine karşı korumalı (ör. anchored/ragdoll kilidi).", 5)
-            end
-        elseif mode == "pull" then
-            local _, thEnd = Troll.parts(target)
-            local endDist = thEnd and Troll.flat(thEnd.Position, home) or startDist
-            local moved = math.floor(startDist - endDist + 0.5)
-            if endDist < 12 then
-                notify("Yanına Çekildi", name .. " yanına çekildi!", 3)
-            elseif moved >= 10 then
-                notify("Kısmen Çekildi", name .. " " .. tostring(moved) .. " stud yaklaştı.", 3)
-            else
-                notify("Çekilemedi", name .. " yerinden oynamadı; oyun buna karşı korumalı olabilir.", 4)
-            end
-        else
-            notify("Sallantı Bitti", name .. " sallandı (etki oyuna göre değişir).", 3)
-        end
-    end)
-end
-
-createButton(TrollPage, "💥  3. Oyuncuya Patlama Efekti", function()
-    if not Troll.require() then return end
-    pcall(function()
-        local _, hrp = Troll.parts(selectedTargetPlayer)
-        local ex = Instance.new("Explosion")
-        ex.Position = hrp.Position
-        ex.BlastRadius = 12
-        ex.BlastPressure = 0
-        ex.DestroyJointRadiusPercent = 0
-        ex.ExplosionType = Enum.ExplosionType.NoCraters
-        ex.Parent = workspace
-    end)
-    notify("Patlama", "Efekt yalnızca senin ekranında görünür.", 3)
-end)
-
-createButton(TrollPage, "☄️  5. Kafasına Taş/Blok Düşür", function()
-    if not Troll.require() then return end
-    pcall(function()
-        local char, hrp = Troll.parts(selectedTargetPlayer)
-        local head = char:FindFirstChild("Head") or hrp
-        local part = Instance.new("Part")
-        part.Size = Vector3.new(3, 3, 3)
-        part.Material = Enum.Material.Slate
-        part.BrickColor = BrickColor.new("Dark stone grey")
-        part.Anchored = false
-        part.CanCollide = true
-        part.CFrame = CFrame.new(head.Position + Vector3.new(0, 25, 0))
-        part.AssemblyLinearVelocity = Vector3.new(0, -80, 0)
-        part.Parent = workspace
-        task.delay(5, function() part:Destroy() end)
-    end)
-    notify("Blok Düştü", "Blok yalnızca senin ekranında görünür.", 3)
-end)
-
-createButton(TrollPage, "📌  6. Oyuncuyu Olduğu Yere Sabitle", function()
-    if not Troll.require() then return end
-    local plr = selectedTargetPlayer
-    local _, hrp0 = Troll.parts(plr)
-    local frozenCF = hrp0.CFrame
-    local startT = os.clock()
-    local conn
-    conn = RunService.Heartbeat:Connect(function()
-        local _, h = Troll.parts(plr)
-        if not alive or os.clock() - startT >= 3 or not h then
-            conn:Disconnect()
-            if h then h.Anchored = false end
-            return
-        end
-        h.CFrame = frozenCF
-        h.AssemblyLinearVelocity = Vector3.zero
-        h.Anchored = true
-    end)
-    notify("Sabitlendi", plr.Name .. " 3 sn donduruldu (yalnızca senin ekranında).", 3)
-end)
-
-createButton(TrollPage, "💃  7. Oyuncuyu Sars / Sallantı Ver", function()
-    Troll.attack("shake")
-end)
-
-createButton(TrollPage, "🕶️  8. Hedefin Bilgilerini Al", function()
-    if not selectedTargetPlayer or not selectedTargetPlayer.Parent then
-        notify("Hata", "Lütfen önce bir hedef oyuncu seçin!", 3)
-        return
-    end
-    local plr = selectedTargetPlayer
-    local _, hrp, hum = Troll.parts(plr)
-
-    local line1 = plr.DisplayName .. " (@" .. plr.Name .. ")  •  ID: " .. tostring(plr.UserId)
-    local line2 = "Hesap yaşı: " .. tostring(plr.AccountAge) .. " gün  •  Takım: " .. (plr.Team and plr.Team.Name or "Yok")
-    local line3 = "Karakter şu an yüklü değil."
-    if hum and hrp then
-        local myHrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local dist = myHrp and tostring(math.floor((myHrp.Position - hrp.Position).Magnitude + 0.5)) or "?"
-        line3 = "Can: " .. tostring(math.floor(hum.Health)) .. "/" .. tostring(math.floor(hum.MaxHealth))
-            .. "  •  Hız: " .. tostring(math.floor(hum.WalkSpeed))
-            .. "  •  Mesafe: " .. dist .. " m"
-    end
-
-    notify("Hedef Bilgisi", line1, 5)
-    task.delay(0.15, function() notify("Hesap", line2, 5) end)
-    task.delay(0.3, function() notify("Durum", line3, 5) end)
-end)
-
-createButton(TrollPage, "🔄  9. Kamera Efekti (FOV Trolling)", function()
-    if Troll.fovBusy then return end
-    local cam = workspace.CurrentCamera
-    if not cam then return end
-    Troll.fovBusy = true
-    local origFov = cam.FieldOfView
-    local startT = os.clock()
-    RunService:BindToRenderStep("EZRAGOX_FOV", Enum.RenderPriority.Camera.Value + 1, function()
-        local t = os.clock() - startT
-        if t >= 2 or not alive then
-            RunService:UnbindFromRenderStep("EZRAGOX_FOV")
-            cam.FieldOfView = origFov
-            Troll.fovBusy = false
-            return
-        end
-        cam.FieldOfView = math.clamp(75 + math.sin(t * 31) * 40, 20, 120)
-    end)
-    notify("Kamera Troll", "Kamera efektleri uygulandı!", 2)
-end)
-
-createButton(TrollPage, "💨  10. Sunucudaki Herkesi Zıplat", function()
-    for _, p in ipairs(Players:GetPlayers()) do
-        pcall(function()
-            local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.Jump = true
-            end
-        end)
-    end
-    notify("Toplu Zıplama", "Sunucudaki herkes zıplatıldı!", 2)
-end)
-
--- 11. SEÇİLEN OYUNCUYU İZLE (Spectate)
-local Spectate = {on = false, conn = nil}
-local spectateToggleObj
-
-local function restoreOwnCamera()
-    pcall(function()
-        local cam = workspace.CurrentCamera
-        local myChar = LocalPlayer.Character
-        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        if cam and myHum then
-            cam.CameraSubject = myHum
-        end
-    end)
-end
-
-local function stopSpectate()
-    Spectate.on = false
-    if Spectate.conn then
-        Spectate.conn:Disconnect()
-        Spectate.conn = nil
-    end
-    restoreOwnCamera()
-end
-
-spectateToggleObj = createToggle(TrollPage, "👁️  11. Seçilen Oyuncuyu İzle", false, function(v)
-    if v then
-        if not selectedTargetPlayer or not selectedTargetPlayer.Parent then
-            notify("Hata", "Lütfen önce yukarıdan hedef oyuncu seçin!", 3)
-            task.defer(function() spectateToggleObj.Set(false, true) end)
-            return
-        end
-        Spectate.on = true
-        notify("İzleme Aktif", selectedTargetPlayer.Name .. " adlı oyuncu izleniyor!", 3)
-        if Spectate.conn then Spectate.conn:Disconnect() end
-        Spectate.conn = bind(RunService.RenderStepped, function()
-            if not Spectate.on then return end
-
-            -- Hedef oyundan çıktıysa izlemeyi otomatik kapat
-            local target = selectedTargetPlayer
-            if not target or not target.Parent then
-                stopSpectate()
-                notify("İzleme Kapandı", "Hedef oyuncu oyundan ayrıldı.", 3)
-                task.defer(function() spectateToggleObj.Set(false, true) end)
-                return
-            end
-
-            -- Hedef ölüp yeniden doğunca (veya hedef değiştirilince) kamerayı yeni Humanoid'e bağla
-            pcall(function()
-                local cam = workspace.CurrentCamera
-                local hum = target.Character and target.Character:FindFirstChildOfClass("Humanoid")
-                if cam and hum and cam.CameraSubject ~= hum then
-                    cam.CameraSubject = hum
-                end
-            end)
-        end)
-    else
-        stopSpectate()
-        notify("İzleme Kapandı", "Kamera kendi karakterine döndü.", 2)
-    end
-end)
-
--- 12. SEÇİLEN OYUNCUNUN YANINA IŞINLAN
-createButton(TrollPage, "🚀  12. Seçilen Oyuncunun Yanına Işınlan", function()
-    if Troll.busy then
-        notify("Bekle", "Önceki işlem hâlâ sürüyor.", 2)
-        return
-    end
-    if not Troll.require() then return end
-    local myChar, myHrp = Troll.parts(LocalPlayer)
-    local _, tHrp = Troll.parts(selectedTargetPlayer)
-    if not myChar or not myHrp then
-        notify("Hata", "Kendi karakterin hazır değil.", 3)
-        return
-    end
-    -- Hedefin hemen arkasına, aynı yöne bakarak
-    myChar:PivotTo(tHrp.CFrame * CFrame.new(0, 0, 4))
-    myHrp.AssemblyLinearVelocity = Vector3.zero
-    notify("Işınlandın", selectedTargetPlayer.Name .. " adlı oyuncunun yanındasın!", 2)
-end)
-
--- 13. SEÇİLEN OYUNCUYU YANIMA ÇEK (fizik ile iterek)
-createButton(TrollPage, "🎣  13. Seçilen Oyuncuyu Yanıma Çek", function()
-    Troll.attack("pull")
-end)
-
--- 14. SEÇİLİ OYUNCUYU FIRLAT (1000x) — MM2 sekmesindeki ile aynı özellik (yalnızca MM2'de eklenir)
-if Settings.MM2FlingPlayer then
-    createButton(TrollPage, "💥  14. Seçili Oyuncuyu Fırlat (1000x)", function()
-        Settings.MM2FlingPlayer(selectedTargetPlayer)
-    end)
-end
-
-end
-
 ---------------------------------------------------------
 -- PREMİUM (ANAHTAR SİSTEMİ) + YÖNETİM (SADECE SAHİBİ İÇİN)
 ---------------------------------------------------------
@@ -21521,12 +20407,8 @@ do
         end
     end)
 
-    -- Executor destekliyorsa FPS sınırını yükseltir (setfpscap)
-    do
-        local sv = Settings.SliderValues["🎯  FPS Sınırı  (executor destekliyorsa)"]
-        if type(sv) == "number" then Settings.FPSX.cap = 360 end -- Eski kayıtlı 60/144 değeri otomatik olarak maksimuma çekilir.
-    end
-    PX.slider("🎯  FPS Sınırı  (executor destekliyorsa)", 60, 360, 360, function(v)
+    -- Executor destekliyorsa FPS sınırını ayarlar; 144 varsayılanı yükü ve kare süresi dalgalanmasını dengeler.
+    PX.slider("🎯  FPS Sınırı  (executor destekliyorsa)", 60, 240, 144, function(v)
         Settings.FPSX.setCap(v)
     end, " fps")
 
@@ -22193,998 +21075,6 @@ PX.secHolders.emote = createSection(PremiumPage, "💃  PREMİUM EMOTE  (DANS)")
     end)
 end)()
 
-PX.secHolders.outfit = createSection(PremiumPage, "👑  PREMİUM KIYAFET DEĞİŞTİRİCİ")
-
-    -- Başka bir kullanıcının görünümünü kuşan
-    do
-        -- Sağdaki dönen karakter önizlemesi (fareyle üzerine gelinen oyuncuyu gösterir)
-        local hoverTok, shownP = 0, nil
-        local function viewportOk()
-            local cam = MenuCharViewport.CurrentCamera
-            return MenuCharViewport:FindFirstChildOfClass("Model") ~= nil
-                and cam ~= nil and cam.Parent == MenuCharViewport
-        end
-        local function previewPlayer(plr)
-            Settings.PlayerPreview(plr)
-        end
-
-        -- Mod: "global" = Roblox'taki herhangi biri, "server" = bu sunucudaki oyuncular
-        local mode = "global"
-        local modeRow = baseRow(PremiumPage, "Frame", 46)
-        local modeBtns = {}
-        local function makeModeBtn(key, text, xScale, xOff)
-            local b = new("TextButton", {
-                AnchorPoint = Vector2.new(0, 0.5),
-                Position = UDim2.new(xScale, xOff, 0.5, 0),
-                Size = UDim2.new(0.5, -14, 0, 32),
-                BackgroundColor3 = Color3.fromRGB(28, 14, 20),
-                AutoButtonColor = false, Text = text,
-                Font = Enum.Font.GothamBold, TextSize = 12,
-                TextColor3 = Color3.fromRGB(228, 233, 245), ZIndex = 4,
-            }, modeRow)
-            corner(b, 8)
-            ctaFx(b, {radius = 8, colors = false})
-            modeBtns[key] = {btn = b, st = stroke(b, 1, Color3.fromRGB(135, 40, 55), 0.3)}
-            return b
-        end
-        makeModeBtn("global", "🌍  Genel Kullanıcı", 0, 10)
-        makeModeBtn("server", "🖥️  Server İçinde", 0.5, 4)
-
-        local _, nameBox, nameLbl = PX.inputRow(PremiumPage, "Genel Kullanıcı", "Roblox kullanıcı adı yaz")
-        nameLbl.TextSize = 12
-        nameLbl.TextWrapped = true
-        nameLbl.Size = UDim2.new(0, 80, 0, 36)
-        nameLbl.Position = UDim2.new(0, 14, 0.5, -18)
-
-        local listFrame = new("ScrollingFrame", {
-            LayoutOrder = nextOrder(PremiumPage),
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundColor3 = ROW_BG, BackgroundTransparency = 0.05,
-            BorderSizePixel = 0, ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Color3.fromRGB(255, 42, 58),
-            CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            Visible = false, ZIndex = 3,
-        }, PremiumPage)
-        corner(listFrame, 12)
-        stroke(listFrame, 1, ROW_STROKE, 0.32)
-        new("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 4)}, listFrame)
-        new("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6),
-            PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, listFrame)
-
-        local busy = false
-
-        -- Varlığı (asset) yükle: önce InsertService, olmazsa game:GetObjects
-        local function loadAsset(id)
-            local model
-            local ok = pcall(function()
-                model = game:GetService("InsertService"):LoadAsset(id)
-            end)
-            if ok and model then return model end
-            local ok2, objs = pcall(function() return game:GetObjects("rbxassetid://" .. id) end)
-            if ok2 and objs and objs[1] then return objs[1] end
-            return nil
-        end
-
-        -- Yedek yöntem: ApplyDescription çalışmazsa parçaları elle uygula
-        local function manualApply(char, hum, desc)
-            -- Vücut renkleri
-            local bc = char:FindFirstChildOfClass("BodyColors")
-            if not bc then bc = Instance.new("BodyColors") bc.Parent = char end
-            bc.HeadColor3, bc.TorsoColor3 = desc.HeadColor, desc.TorsoColor
-            bc.LeftArmColor3, bc.RightArmColor3 = desc.LeftArmColor, desc.RightArmColor
-            bc.LeftLegColor3, bc.RightLegColor3 = desc.LeftLegColor, desc.RightLegColor
-
-            -- Eski aksesuar ve kıyafetleri temizle
-            for _, v in ipairs(char:GetChildren()) do
-                if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") then
-                    v:Destroy()
-                end
-            end
-
-            local function addClothing(id, className)
-                if not id or id == 0 then return end
-                local m = loadAsset(id)
-                local item = m and m:FindFirstChildWhichIsA(className, true)
-                if item then item:Clone().Parent = char end
-            end
-            addClothing(desc.Shirt, "Shirt")
-            addClothing(desc.Pants, "Pants")
-            addClothing(desc.GraphicTShirt, "ShirtGraphic")
-
-            local added = 0
-            for _, info in ipairs(desc:GetAccessories(true)) do
-                local m = loadAsset(info.AssetId)
-                local acc = m and m:FindFirstChildWhichIsA("Accessory", true)
-                if acc then
-                    local okAdd = pcall(function() hum:AddAccessory(acc:Clone()) end)
-                    if okAdd then added += 1 end
-                end
-            end
-
-            -- Yüz
-            if desc.Face and desc.Face ~= 0 then
-                local head = char:FindFirstChild("Head")
-                local m = loadAsset(desc.Face)
-                local decal = m and m:FindFirstChildWhichIsA("Decal", true)
-                if head and decal then
-                    local old = head:FindFirstChildOfClass("Decal")
-                    if old then old:Destroy() end
-                    decal:Clone().Parent = head
-                end
-            end
-            return added
-        end
-
-        local function countAcc(char)
-            local n = 0
-            for _, v in ipairs(char:GetChildren()) do
-                if v:IsA("Accessory") then n += 1 end
-            end
-            return n
-        end
-
-        -- Kaynak modelden (aksesuar / kıyafet / renk) parçaları karakterine kopyala
-        local function applyFromModel(char, hum, desc, src)
-            local accs, cloths = {}, {}
-            for _, v in ipairs(src:GetChildren()) do
-                if v:IsA("Accessory") then
-                    accs[#accs + 1] = v
-                elseif v:IsA("Shirt") or v:IsA("Pants") or v:IsA("ShirtGraphic") or v:IsA("BodyColors") then
-                    cloths[#cloths + 1] = v
-                end
-            end
-            if #accs + #cloths == 0 then error("kaynakta aksesuar/kıyafet yok") end
-
-            -- Yeni görünüm hazır: eskisini temizle
-            for _, v in ipairs(char:GetChildren()) do
-                if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants")
-                    or v:IsA("ShirtGraphic") or v:IsA("BodyColors") then
-                    pcall(function() v:Destroy() end)
-                end
-            end
-
-            for _, v in ipairs(cloths) do pcall(function() v:Clone().Parent = char end) end
-            for _, v in ipairs(accs) do pcall(function() hum:AddAccessory(v:Clone()) end) end
-
-            -- Yüz ve kafa şekli
-            pcall(function()
-                local rh, ch = src:FindFirstChild("Head"), char:FindFirstChild("Head")
-                if rh and ch then
-                    local rf = rh:FindFirstChildOfClass("Decal")
-                    if rf then
-                        local old = ch:FindFirstChildOfClass("Decal")
-                        if old then old:Destroy() end
-                        rf:Clone().Parent = ch
-                    end
-                    local rm = rh:FindFirstChildOfClass("SpecialMesh")
-                    if rm then
-                        local om = ch:FindFirstChildOfClass("SpecialMesh")
-                        if om then om:Destroy() end
-                        rm:Clone().Parent = ch
-                    end
-                end
-            end)
-
-            -- Vücut parçaları (renk, mesh, doku)
-            for _, rp in ipairs(src:GetChildren()) do
-                local cp = char:FindFirstChild(rp.Name)
-                if cp and rp:IsA("BasePart") and cp:IsA("BasePart") then
-                    pcall(function()
-                        cp.Color = rp.Color
-                        if rp:IsA("MeshPart") and cp:IsA("MeshPart") then
-                            cp.MeshId = rp.MeshId
-                            cp.TextureID = rp.TextureID
-                        end
-                    end)
-                end
-            end
-
-            -- Boy / genişlik
-            if desc then
-                pcall(function()
-                    local rs = {
-                        BodyHeightScale = desc.HeightScale, BodyWidthScale = desc.WidthScale,
-                        BodyDepthScale = desc.DepthScale, HeadScale = desc.HeadScale,
-                    }
-                    for name, val in pairs(rs) do
-                        local nv = hum:FindFirstChild(name)
-                        if nv then nv.Value = val end
-                    end
-                end)
-            end
-        end
-
-        local function applyLook(userId, label, srcPlr)
-            if busy then return end
-            busy = true
-            task.spawn(function()
-                local errs, usedMethod = {}, nil
-                local char = LocalPlayer.Character
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-                if not hum then
-                    errs[#errs + 1] = "karakter/Humanoid yok"
-                else
-                    local desc
-                    for i = 1, 3 do
-                        local s, r = pcall(function()
-                            return Players:GetHumanoidDescriptionFromUserId(userId)
-                        end)
-                        if s and r then desc = r break end
-                        errs[#errs + 1] = "desc: " .. tostring(r)
-                        task.wait(1)
-                    end
-
-                    local expected = 0
-                    if desc then pcall(function() expected = #desc:GetAccessories(true) end) end
-                    local function verified() return expected == 0 or countAcc(char) > 0 end
-
-                    local steps = {
-                        {"ApplyDescription", function()
-                            assert(desc, "desc yok")
-                            local s, e = pcall(function() hum:ApplyDescriptionReset(desc) end)
-                            if not s then hum:ApplyDescription(desc) end
-                        end},
-                        {"CharacterAppearance", function()
-                            local m = Players:GetCharacterAppearanceAsync(userId)
-                            applyFromModel(char, hum, desc, m)
-                            pcall(function() m:Destroy() end)
-                        end},
-                        {"CanlıKarakter", function()
-                            assert(srcPlr and srcPlr.Character, "oyuncunun karakteri yüklü değil")
-                            applyFromModel(char, hum, desc, srcPlr.Character)
-                        end},
-                        {"Model", function()
-                            assert(desc, "desc yok")
-                            local rig
-                            pcall(function() rig = Players:CreateHumanoidModelFromDescription(desc, hum.RigType) end)
-                            if not rig then rig = Players:CreateHumanoidModelFromUserId(userId) end
-                            applyFromModel(char, hum, desc, rig)
-                            pcall(function() rig:Destroy() end)
-                        end},
-                        {"LoadAsset", function()
-                            assert(desc, "desc yok")
-                            manualApply(char, hum, desc)
-                        end},
-                    }
-
-                    for _, step in ipairs(steps) do
-                        local s, e = pcall(step[2])
-                        if s and verified() then
-                            usedMethod = step[1]
-                            break
-                        end
-                        errs[#errs + 1] = step[1] .. ": " .. (s and "aksesuar eklenmedi" or tostring(e))
-                    end
-
-                    -- Oyun aksesuarları geri siliyor mu?
-                    if usedMethod and expected > 0 then
-                        task.wait(1.5)
-                        if countAcc(char) == 0 then
-                            errs[#errs + 1] = "oyun aksesuarları siliyor"
-                            usedMethod = nil
-                        end
-                    end
-                end
-
-                busy = false
-                if usedMethod then
-                    print("[EZRAGOX] Yöntem: " .. usedMethod .. " | Aksesuar: " .. countAcc(char))
-                    notify("Görünüm Kuşanıldı 👕", label .. " görünümü uygulandı.", 4)
-                else
-                    warn("[EZRAGOX] Görünüm hataları:\n" .. table.concat(errs, "\n"))
-                    notify("Kuşanılamadı", tostring(errs[#errs] or "bilinmiyor"):sub(1, 110), 6)
-                end
-            end)
-        end
-        local selectedPlr = nil
-        local thumbCache = {}
-        local rowRefs = {}
-        local applyBtn
-
-        local function shownMatches()
-            local f = string.lower((nameBox.Text or ""):gsub("%s", "") )
-            local out = {}
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr ~= LocalPlayer then
-                    local n, d = string.lower(plr.Name), string.lower(plr.DisplayName)
-                    if f == "" or n:sub(1, #f) == f or d:sub(1, #f) == f
-                        or n:find(f, 1, true) or d:find(f, 1, true) then
-                        out[#out + 1] = plr
-                    end
-                end
-            end
-            return out
-        end
-
-        local function updateApplyLabel()
-            local l = applyBtn and applyBtn:FindFirstChildOfClass("TextLabel")
-            if not l then return end
-            l.TextTruncate = Enum.TextTruncate.AtEnd
-            if mode == "server" and selectedPlr then
-                setText(l, "👕  Uygula  →  " .. selectedPlr.DisplayName .. " (@" .. selectedPlr.Name .. ")")
-            elseif mode == "server" then
-                setText(l, "👕  Seçilen Oyuncuyu Kopyala")
-            else
-                setText(l, "👕  Karakteri Komple Kopyala  (Saç • Üst • Alt • Aksesuar)")
-            end
-        end
-
-        local function applySelectionStyles()
-            for plr, r in pairs(rowRefs) do
-                local sel = (plr == selectedPlr)
-                if r.btn.Parent then
-                    r.btn.BackgroundColor3 = sel and Color3.fromRGB(70, 14, 28) or Color3.fromRGB(28, 14, 20)
-                    r.st.Color = sel and Color3.fromRGB(255, 42, 58) or Color3.fromRGB(135, 40, 55)
-                    r.st.Transparency = sel and 0.05 or 0.55
-                    r.mark.Visible = sel
-                end
-            end
-        end
-
-        local function wantListVisible() return mode == "server" and PX.unlocked end
-        bind(listFrame:GetPropertyChangedSignal("Visible"), function()
-            local want = wantListVisible()
-            if listFrame.Visible ~= want then listFrame.Visible = want end
-        end)
-
-        local function refreshList()
-            previewPlayer(nil)
-            table.clear(rowRefs)
-            for _, ch in ipairs(listFrame:GetChildren()) do
-                if ch:IsA("TextButton") or ch:IsA("TextLabel") then ch:Destroy() end
-            end
-            if mode ~= "server" then
-                listFrame.Visible = false
-                listFrame.Size = UDim2.new(1, 0, 0, 0)
-                previewPlayer(nil)
-                return
-            end
-
-            local matches = shownMatches()
-            if selectedPlr and not selectedPlr.Parent then selectedPlr = nil end
-
-            if #matches == 0 then
-                new("TextLabel", {
-                    Size = UDim2.new(1, 0, 0, 30), BackgroundTransparency = 1,
-                    Text = "Eşleşen oyuncu yok", Font = Enum.Font.GothamMedium, TextSize = 12,
-                    TextColor3 = Color3.fromRGB(150, 163, 195), ZIndex = 4,
-                }, listFrame)
-            end
-
-            for _, plr in ipairs(matches) do
-                local isSel = (plr == selectedPlr)
-                local pBtn = new("TextButton", {
-                    Size = UDim2.new(1, 0, 0, 36),
-                    BackgroundColor3 = isSel and Color3.fromRGB(70, 14, 28) or Color3.fromRGB(28, 14, 20),
-                    BackgroundTransparency = 0.1, AutoButtonColor = false, Text = "", ZIndex = 4,
-                }, listFrame)
-                corner(pBtn, 8)
-                ctaFx(pBtn, {radius = 8, colors = false})
-                local pst = stroke(pBtn, 1, isSel and Color3.fromRGB(255, 42, 58) or Color3.fromRGB(135, 40, 55),
-                    isSel and 0.05 or 0.55)
-
-                local avImg = new("ImageLabel", {
-                    Position = UDim2.new(0, 4, 0, 2), Size = UDim2.new(0, 32, 0, 32),
-                    BackgroundTransparency = 1, Image = thumbCache[plr.UserId] or "", ZIndex = 5,
-                }, pBtn)
-                pill(avImg)
-                if not thumbCache[plr.UserId] then
-                    task.spawn(function()
-                        local ok, thumb = pcall(function()
-                            return Players:GetUserThumbnailAsync(plr.UserId,
-                                Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
-                        end)
-                        if ok and thumb then
-                            thumbCache[plr.UserId] = thumb
-                            if avImg.Parent then avImg.Image = thumb end
-                        end
-                    end)
-                end
-
-                new("TextLabel", {
-                    Position = UDim2.new(0, 44, 0, 0), Size = UDim2.new(1, -70, 1, 0),
-                    BackgroundTransparency = 1, Text = plr.DisplayName .. " (@" .. plr.Name .. ")",
-                    TextColor3 = Color3.new(1, 1, 1), TextSize = 12, Font = Enum.Font.GothamMedium,
-                    TextXAlignment = Enum.TextXAlignment.Left, TextTruncate = Enum.TextTruncate.AtEnd,
-                    ZIndex = 5,
-                }, pBtn)
-                local mark = new("TextLabel", {
-                    AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0),
-                    Size = UDim2.new(0, 18, 0, 18), BackgroundTransparency = 1, Text = "✓",
-                    Font = Enum.Font.GothamBold, TextSize = 14,
-                    TextColor3 = Color3.fromRGB(255, 112, 122), ZIndex = 5, Visible = isSel,
-                }, pBtn)
-                rowRefs[plr] = {btn = pBtn, st = pst, mark = mark}
-
-                -- Üzerine gelince sağdaki dönen karakter bu oyuncu olur
-                pBtn.MouseEnter:Connect(function()
-                    tween(pBtn, 0.12, {BackgroundColor3 = Color3.fromRGB(48, 12, 22), BackgroundTransparency = 0})
-                    tween(pst, 0.12, {Color = Color3.fromRGB(255, 42, 58), Transparency = 0.1})
-                    previewPlayer(plr)
-                end)
-                pBtn.MouseLeave:Connect(function()
-                    local sel = (plr == selectedPlr)
-                    tween(pBtn, 0.18, {
-                        BackgroundColor3 = sel and Color3.fromRGB(70, 14, 28) or Color3.fromRGB(28, 14, 20),
-                        BackgroundTransparency = 0.1,
-                    })
-                    tween(pst, 0.18, {
-                        Color = sel and Color3.fromRGB(255, 42, 58) or Color3.fromRGB(135, 40, 55),
-                        Transparency = sel and 0.05 or 0.55,
-                    })
-                    previewPlayer(nil)
-                end)
-                pBtn.MouseButton1Click:Connect(function()
-                    playClickSound()
-                    selectedPlr = plr
-                    updateApplyLabel()
-                    applySelectionStyles()
-                    previewPlayer(nil)   -- seçince sağdaki karakter tekrar benim karakterime döner
-                end)
-            end
-
-            listFrame.Visible = wantListVisible()
-            listFrame.Size = UDim2.new(1, 0, 0, math.min(math.max(#matches, 1) * 40 + 12, 176))
-        end
-
-        local function setMode(m)
-            mode = m
-            for key, d in pairs(modeBtns) do
-                local on = (key == m)
-                tween(d.btn, 0.16, {BackgroundColor3 = on and Color3.fromRGB(140, 20, 36) or Color3.fromRGB(28, 14, 20)})
-                tween(d.st, 0.16, {
-                    Color = on and Color3.fromRGB(255, 42, 58) or Color3.fromRGB(135, 40, 55),
-                    Transparency = on and 0.05 or 0.3,
-                })
-            end
-            if m == "server" then
-                setText(nameLbl, "Server İçinde")
-                setPlaceholder(nameBox, "İsmin başını yaz, liste süzülür")
-            else
-                setText(nameLbl, "Genel Kullanıcı")
-                setPlaceholder(nameBox, "Roblox kullanıcı adı yaz")
-            end
-            updateApplyLabel()
-            refreshList()
-        end
-
-        bind(modeBtns.global.btn.MouseButton1Click, function() playClickSound() setMode("global") end)
-        bind(modeBtns.server.btn.MouseButton1Click, function() playClickSound() setMode("server") end)
-        bind(nameBox:GetPropertyChangedSignal("Text"), function()
-            if mode == "server" then refreshList() end
-        end)
-        bind(Players.PlayerAdded, function() if mode == "server" then refreshList() end end)
-        bind(Players.PlayerRemoving, function(plr)
-            if plr == selectedPlr then selectedPlr = nil updateApplyLabel() end
-            task.defer(function() if mode == "server" then refreshList() end end)
-        end)
-        bind(PremiumPage:GetPropertyChangedSignal("Visible"), function()
-            if not PremiumPage.Visible then previewPlayer(nil) end
-        end)
-
-        applyBtn = PX.button("👕  Karakteri Komple Kopyala  (Saç • Üst • Alt • Aksesuar)", function()
-            if mode == "server" then
-                local target = selectedPlr
-                if not (target and target.Parent) then
-                    local m = shownMatches()
-                    if #m == 1 then
-                        target = m[1]
-                    else
-                        notify("Oyuncu Seçilmedi", "Listeden bir oyuncu seç (ya da adını yaz).", 3)
-                        return
-                    end
-                end
-                applyLook(target.UserId, target.Name, target)
-            else
-                local name = nameBox.Text:gsub("%s", "")
-                if name == "" then
-                    notify("Kullanıcı Adı Boş", "Önce bir Roblox kullanıcı adı yaz.", 3)
-                    return
-                end
-                task.spawn(function()
-                    local id = PX.resolveUserId(name)
-                    if id then
-                        applyLook(id, name)
-                    else
-                        notify("Kullanıcı Bulunamadı", name, 3)
-                    end
-                end)
-            end
-        end)
-        PX.button("♻️  Kendi Görünümüme Dön", function()
-            applyLook(LocalPlayer.UserId, "Kendi")
-        end)
-
-        setMode("global")
-    end
-
-    createSection(PremiumPage, "👑  PREMİUM OTO TOPLAYICI")
-
-    -- Haritada spawn olan para / altın / gem gibi şeyleri otomatik toplar
-    do
-        local enabled, runId = false, 0
-        local cands = {}          -- [part] = {tries, nextAt, touched}
-        local pending = {}        -- yeni eklenen ve henüz incelenmemiş nesneler
-        local collected = 0
-        local speedLevel = 3      -- 1 = en yavaş/temkinli, 10 = en hızlı
-
-        local BASE_WORDS = {
-            "coin", "gold", "cash", "money", "gem", "para", "altin", "altın", "diamond",
-            "crystal", "orb", "token", "loot", "collect", "pickup", "dollar", "reward",
-            "currency", "treasure", "bill", "nugget",
-        }
-        local DENY_WORDS = {
-            "shop", "store", "sell", "buy", "upgrade", "rebirth", "gate", "door",
-            "teleport", "button", "portal",
-        }
-
-        local _, customBox = PX.inputRow(PremiumPage, "Özel İsim", "örn: Coin, Gold  (boş = otomatik bul)")
-
-        local function hasWord(name, words)
-            for _, w in ipairs(words) do
-                if string.find(name, w, 1, true) then return true end
-            end
-            return false
-        end
-
-        local function customWords()
-            local t = {}
-            for w in string.gmatch(string.lower(customBox.Text or ""), "[^,%s]+") do
-                t[#t + 1] = w
-            end
-            return #t > 0 and t or nil
-        end
-
-        local function isCharPart(part)
-            local m = part:FindFirstAncestorOfClass("Model")
-            while m do
-                if Players:GetPlayerFromCharacter(m) then return true end
-                local par = m.Parent
-                m = par and par:FindFirstAncestorOfClass("Model") or nil
-            end
-            return false
-        end
-
-        local function nameMatches(part, custom)
-            if not custom then
-                local own = string.lower(part.Name)
-                local par = part.Parent and string.lower(part.Parent.Name) or ""
-                if hasWord(own, DENY_WORDS) or hasWord(par, DENY_WORDS) then return false end
-            end
-            local words = custom or BASE_WORDS
-            local node, depth = part, 0
-            while node and node ~= workspace and depth < 4 do
-                if hasWord(string.lower(node.Name), words) then return true end
-                node = node.Parent
-                depth = depth + 1
-            end
-            return false
-        end
-
-        local function considerPart(part, custom, target)
-            if target[part] or not part:IsA("BasePart") or part:IsA("Terrain") then return end
-            if isCharPart(part) then return end
-            if not nameMatches(part, custom) then return end
-            local interactive = part:FindFirstChildWhichIsA("TouchTransmitter")
-                or part:FindFirstChildWhichIsA("ProximityPrompt", true)
-                or part:FindFirstChildWhichIsA("ClickDetector", true)
-            -- Otomatik modda sadece etkileşimli (dokunulabilir/prompt'lu) parçalar alınır
-            if not custom and not interactive then return end
-            target[part] = {tries = 0, nextAt = 0, touched = false}
-        end
-
-        local function enqueue(inst)
-            if #pending > 5000 then return end
-            if inst:IsA("BasePart") then
-                pending[#pending + 1] = inst
-            elseif inst:IsA("TouchTransmitter") or inst:IsA("ProximityPrompt") or inst:IsA("ClickDetector") then
-                local part = inst:FindFirstAncestorWhichIsA("BasePart")
-                if part then pending[#pending + 1] = part end
-            end
-        end
-
-        local function processPending(custom)
-            local n = 0
-            while #pending > 0 and n < 300 do
-                local inst = table.remove(pending)
-                if inst and inst.Parent then pcall(considerPart, inst, custom, cands) end
-                n = n + 1
-            end
-        end
-
-        -- Tüm haritayı tara (donmasın diye parça parça)
-        local function scanInto(target, custom)
-            local count = 0
-            local list = workspace:GetDescendants()
-            for i, inst in ipairs(list) do
-                if inst:IsA("BasePart") then
-                    local before = target[inst]
-                    pcall(considerPart, inst, custom, target)
-                    if not before and target[inst] then count = count + 1 end
-                end
-                if i % 1500 == 0 then task.wait() end
-            end
-            return count
-        end
-
-        bind(workspace.DescendantAdded, function(inst)
-            if enabled then enqueue(inst) end
-        end)
-
-        local function interact(part, hrp)
-            local used = false
-            local prompt = part:FindFirstChildWhichIsA("ProximityPrompt", true)
-            if prompt and type(fireproximityprompt) == "function" then
-                pcall(fireproximityprompt, prompt)
-                used = true
-            end
-            local cd = part:FindFirstChildWhichIsA("ClickDetector", true)
-            if cd and type(fireclickdetector) == "function" then
-                pcall(fireclickdetector, cd)
-                used = true
-            end
-            if type(firetouchinterest) == "function" and part:FindFirstChildWhichIsA("TouchTransmitter") then
-                pcall(function()
-                    firetouchinterest(hrp, part, 0)
-                    firetouchinterest(hrp, part, 1)
-                end)
-                used = true
-            end
-            return used
-        end
-
-        -- En yakın hazır parçayı seç (hepsini birden değil, tek tek gidilecek)
-        local function pickNearest(hrp, now)
-            local best, bestInfo, bestD
-            local pos = hrp.Position
-            for part, info in pairs(cands) do
-                if not part.Parent then
-                    if info.touched then collected = collected + 1 end
-                    cands[part] = nil
-                elseif now >= info.nextAt and part.CanTouch ~= false then
-                    local d = (part.Position - pos).Magnitude
-                    if not bestD or d < bestD then best, bestInfo, bestD = part, info, d end
-                end
-            end
-            return best, bestInfo
-        end
-
-        -- Tek parça: doğrudan paranın üstüne ışınlan (süzülme yok), kısa bekle
-        local function pickupOne(part, info, hrp)
-            info.tries = info.tries + 1
-            info.touched = true
-            pcall(function()
-                hrp.CFrame = CFrame.new(part.Position)
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
-            end)
-            -- Önce fiziksel temasın gerçekleşmesine izin ver
-            RunService.Heartbeat:Wait()
-            RunService.Heartbeat:Wait()
-            -- Yetmediyse yedek etkileşim (artık paranın tam üstündeyken)
-            if part.Parent then interact(part, hrp) end
-            task.wait(0.2 + math.random() * 0.15)
-            if info.tries >= 3 and part.Parent then
-                info.tries = 0
-                info.nextAt = os.clock() + 20   -- toplanamayanı 20 sn beklet
-            else
-                info.nextAt = os.clock() + 1
-            end
-        end
-
-        local function collectLoop(myRun)
-            local homeCF, idleSince = nil, nil
-            while enabled and alive and myRun == runId do
-                local char = LocalPlayer.Character
-                local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hrp and hum and hum.Health > 0 then
-                    processPending(customWords())
-                    local part, info = pickNearest(hrp, os.clock())
-                    if part then
-                        idleSince = nil
-                        if not homeCF then homeCF = hrp.CFrame end
-                        pickupOne(part, info, hrp)
-                        -- Hız ayarına göre bekle (hafif rastgele sapmayla)
-                        local delay = 2.5 - (speedLevel - 1) * (2.2 / 9)
-                        task.wait(delay * (0.8 + math.random() * 0.4))
-                    else
-                        -- Toplanacak kalmadıysa başladığım yere bir kez dön
-                        if homeCF then
-                            idleSince = idleSince or os.clock()
-                            if os.clock() - idleSince > 1.2 then
-                                pcall(function()
-                                    hrp.CFrame = homeCF
-                                    hrp.AssemblyLinearVelocity = Vector3.zero
-                                end)
-                                homeCF, idleSince = nil, nil
-                            end
-                        end
-                        task.wait(0.25)
-                    end
-                else
-                    homeCF, idleSince = nil, nil
-                    task.wait(0.5)
-                end
-            end
-            -- Kapatıldıysa başladığım yere dön
-            if homeCF and not enabled then
-                local c = LocalPlayer.Character
-                local h = c and c:FindFirstChild("HumanoidRootPart")
-                if h then pcall(function() h.CFrame = homeCF end) end
-            end
-        end
-
-        PX.toggle("💰  Otomatik Para / Altın Topla  (Tüm Harita)", function(v)
-            enabled = v
-            runId = runId + 1
-            local myRun = runId
-            if v then
-                collected = 0
-                table.clear(cands)
-                table.clear(pending)
-                local hasFns = type(firetouchinterest) == "function"
-                notify("Oto Toplayıcı", hasFns and "En yakın paradan başlayıp tek tek toplanacak."
-                    or "Executor dokunma fonksiyonu yok: paranın üstüne ışınlanarak toplanacak.", 3)
-                task.spawn(function()
-                    local n = scanInto(cands, customWords())
-                    if enabled and myRun == runId and n == 0 then
-                        notify("Para Bulunamadı", "Şu an eşleşen yok. Yeni spawn olanlar otomatik alınır. İstersen 'Özel İsim' yaz.", 5)
-                    end
-                end)
-                task.spawn(collectLoop, myRun)
-            else
-                table.clear(cands)
-                table.clear(pending)
-                notify("Oto Toplayıcı Kapandı", collected .. " parça toplandı.", 3)
-            end
-        end)
-
-        PX.slider("⚡  Toplama Hızı  (düşük = daha temkinli)", 1, 10, 3, function(v)
-            speedLevel = v
-        end)
-
-        bind(customBox.FocusLost, function()
-            if not enabled then return end
-            runId = runId + 1
-            local myRun = runId
-            table.clear(cands)
-            table.clear(pending)
-            task.spawn(function() scanInto(cands, customWords()) end)
-            task.spawn(collectLoop, myRun)
-        end)
-
-        PX.button("🔍  Haritadaki Paraları Tara  (Kaç Tane Var?)", function()
-            task.spawn(function()
-                local tmp = {}
-                local total = scanInto(tmp, customWords())
-                if total == 0 then
-                    notify("Tarama Bitti", "Hiç bulunamadı. 'Özel İsim' kutusuna paranın adını yaz (örn: Coin).", 5)
-                    return
-                end
-                local groups = {}
-                for part in pairs(tmp) do groups[part.Name] = (groups[part.Name] or 0) + 1 end
-                local arr = {}
-                for name, c in pairs(groups) do arr[#arr + 1] = {name, c} end
-                table.sort(arr, function(a, b) return a[2] > b[2] end)
-                local out = {}
-                for i = 1, math.min(#arr, 4) do out[#out + 1] = arr[i][1] .. " ×" .. arr[i][2] end
-                print("[EZRAGOX] Tarama sonucu:")
-                for _, a in ipairs(arr) do print("  " .. a[1] .. " ×" .. a[2]) end
-                notify("Tarama: " .. total .. " parça", table.concat(out, "  •  "), 6)
-            end)
-        end)
-    end
-
-    PX.secHolders.tag = createSection(PremiumPage, "👑  PREMİUM SAHTE TAG & RGB İSİM")
-
-    -- Sahte rütbe yazısı + RGB isim (yalnızca senin ekranında görünür, sunucuyu etkilemez)
-    do
-        -- Oyundaki gerçek rütbe yazısı gibi: parantezsiz, ismin altında, sarı-yeşil, siyah konturlu
-        local TAGS = {
-            "Mod", "Admin", "HeadAdmin", "Owner", "SeniorMod", "SeniorAdmin",
-            "SeniorLeader", "Yardımcı", "Gear", "Denetleyici",
-        }
-        local TAG_COLOR = Color3.fromRGB(205, 215, 45)
-        local tagOn, rgbOn, tagIdx, rgbSpeed, tagY = false, false, 6, 5, 22
-        do local ti = tonumber(Settings.TagIdx); if ti and TAGS[ti] then tagIdx = ti end end
-        local tagGui, tagLbl = nil, nil
-        local nameGui, nameLbl = nil, nil            -- oyunun kendi isim yazısı bulunamazsa kullanılan yedek
-        local gameLabels, origColors, lastScan = {}, {}, 0
-        local origHum, origDisplay = nil, nil
-
-        local function destroyTag()
-            if tagGui then pcall(function() tagGui:Destroy() end) end
-            tagGui, tagLbl = nil, nil
-        end
-        local function restoreName()
-            for lbl, col in pairs(origColors) do
-                if lbl and lbl.Parent then pcall(function() lbl.TextColor3 = col end) end
-            end
-            origColors, gameLabels = {}, {}
-            if nameGui then pcall(function() nameGui:Destroy() end) end
-            nameGui, nameLbl = nil, nil
-            if origHum and origHum.Parent and origDisplay then
-                pcall(function() origHum.DisplayDistanceType = origDisplay end)
-            end
-            origHum, origDisplay = nil, nil
-        end
-
-        local function buildTag(char)
-            destroyTag()
-            local head = char:FindFirstChild("Head")
-            if not head then return end
-            tagGui = new("BillboardGui", {
-                Name = "EZRAGOX_FakeTag", Adornee = head, AlwaysOnTop = true,
-                Size = UDim2.new(0, 240, 0, 30), StudsOffset = Vector3.new(0, tagY / 10, 0),
-                MaxDistance = 1000,
-            }, head)
-            tagLbl = new("TextLabel", {
-                BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
-                Font = Enum.Font.GothamBlack, TextSize = 22, Text = "",
-                TextColor3 = TAG_COLOR, TextStrokeColor3 = Color3.new(0, 0, 0),
-                TextStrokeTransparency = 0,
-            }, tagGui)
-        end
-
-        -- Oyunun kendi isim yazısını bul (başındaki BillboardGui içindeki isim etiketi)
-        local function scanNameLabels(char)
-            gameLabels = {}
-            for _, d in ipairs(char:GetDescendants()) do
-                if d:IsA("TextLabel") and d ~= tagLbl and d ~= nameLbl
-                    and (d.Text == LocalPlayer.Name or d.Text == LocalPlayer.DisplayName)
-                    and d:FindFirstAncestorOfClass("BillboardGui") then
-                    gameLabels[#gameLabels + 1] = d
-                    if origColors[d] == nil then origColors[d] = d.TextColor3 end
-                end
-            end
-        end
-
-        local function buildFallbackName(char)
-            local head = char:FindFirstChild("Head")
-            if not head then return end
-            if nameGui then pcall(function() nameGui:Destroy() end) end
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if hum and not origHum then
-                origHum, origDisplay = hum, hum.DisplayDistanceType
-                hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-            end
-            nameGui = new("BillboardGui", {
-                Name = "EZRAGOX_RGBName", Adornee = head, AlwaysOnTop = true,
-                Size = UDim2.new(0, 240, 0, 30), StudsOffset = Vector3.new(0, tagY / 10 + 1.2, 0),
-                MaxDistance = 1000,
-            }, head)
-            nameLbl = new("TextLabel", {
-                BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
-                Font = Enum.Font.GothamBlack, TextSize = 22, Text = LocalPlayer.DisplayName,
-                TextColor3 = Color3.new(1, 1, 1), TextStrokeColor3 = Color3.new(0, 0, 0),
-                TextStrokeTransparency = 0,
-            }, nameGui)
-        end
-
-        bind(RunService.Heartbeat, function()
-            if not (tagOn or rgbOn) then return end
-            local char = LocalPlayer.Character
-            if not char then return end
-            local t = os.clock()
-
-            if tagOn then
-                if not tagGui or tagGui.Parent == nil or not tagGui:IsDescendantOf(char) then
-                    buildTag(char)
-                end
-                if tagLbl then
-                    tagLbl.Text = TAGS[tagIdx]
-                    tagGui.StudsOffset = Vector3.new(0, tagY / 10, 0)
-                end
-            end
-
-            if rgbOn then
-                if t - lastScan > 1 then
-                    lastScan = t
-                    scanNameLabels(char)
-                end
-                local col = Color3.fromHSV((t * rgbSpeed * 0.07) % 1, 1, 1)
-                local any = false
-                for _, lbl in ipairs(gameLabels) do
-                    if lbl.Parent then
-                        lbl.TextColor3 = col
-                        any = true
-                    end
-                end
-                if not any then
-                    if not nameGui or nameGui.Parent == nil or not nameGui:IsDescendantOf(char) then
-                        buildFallbackName(char)
-                    end
-                    if nameLbl then
-                        nameLbl.TextColor3 = col
-                        nameGui.StudsOffset = Vector3.new(0, tagY / 10 + 1.2, 0)
-                    end
-                end
-            end
-        end)
-
-        PX.toggle("🏷️  Sahte Rütbe Yazısı Göster", function(v)
-            tagOn = v
-            if v then
-                notify("Sahte Rütbe", TAGS[tagIdx] .. " aktif! (Sadece senin ekranında görünür)", 3)
-            else
-                destroyTag()
-            end
-        end)
-
-        -- Rütbe menüsü: başlığa basmadıkça liste gözükmez; basınca alta doğru sıralanır
-        do
-            local mHeader, mSt = baseRow(PremiumPage, "TextButton", 42)
-            rowLabel(mHeader, "🏷️  Rütbe Menüsü")
-            local mArrow = new("TextLabel", {
-                Size = UDim2.new(0, 30, 1, 0), Position = UDim2.new(1, -36, 0, 0), BackgroundTransparency = 1,
-                Text = "▾", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Color3.fromRGB(120, 134, 170), ZIndex = 4,
-            }, mHeader)
-            hoverFx(mHeader, mSt)
-
-            local mBody = new("Frame", {
-                LayoutOrder = nextOrder(PremiumPage), Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, BorderSizePixel = 0,
-                Visible = false, ZIndex = 3,
-            }, PremiumPage)
-            new("UIPadding", {PaddingLeft = UDim.new(0, 12), PaddingTop = UDim.new(0, 2), PaddingBottom = UDim.new(0, 2)}, mBody)
-            new("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 3)}, mBody)
-            PX.collapsibles[#PX.collapsibles + 1] = mBody
-
-            for i, name in ipairs(TAGS) do
-                createButton(mBody, "🏷️  Rütbe: " .. name, function()
-                    if not PX.unlocked then return end
-                    tagIdx = i
-                    Settings.TagIdx = i
-                    saveConfig()
-                    notify("Rütbe Seçildi", name .. (tagOn and "" or "  —  Üstteki anahtarı aç."), 2)
-                end)
-            end
-            -- Kaydırıcı sayfa kaydırmasını kilitlediği için önce sayfada oluşturulur, sonra menüye taşınır
-            do
-                local sBefore = snapshot(PremiumPage)
-                createSlider(PremiumPage, "↕️  Yazı Yüksekliği  (isim altına denk getir)", 0, 60, 22, function(v)
-                    if PX.unlocked then tagY = v end
-                end)
-                local moved = {}
-                collectNew(PremiumPage, sBefore, moved)
-                for _, r in ipairs(moved) do r.Parent = mBody end
-            end
-
-            local mOpen = false
-            bind(mHeader.MouseButton1Click, function()
-                if not PX.unlocked then return end
-                playClickSound()
-                mOpen = not mOpen
-                mBody.Visible = mOpen
-                setText(mArrow, mOpen and "▴" or "▾")
-            end)
-            PX.onLock[#PX.onLock + 1] = function()
-                mOpen = false
-                mBody.Visible = false
-                setText(mArrow, "▾")
-            end
-        end
-
-        PX.toggle("🌈  RGB İsim  (Renk Değiştiren Ad)", function(v)
-            rgbOn = v
-            if v then
-                notify("RGB İsim", "İsmin renk değiştiriyor! (Sadece senin ekranında)", 3)
-            else
-                restoreName()
-            end
-        end)
-
-        PX.slider("⚡  RGB Hızı", 1, 10, 5, function(v) rgbSpeed = v end)
-
-        PX.onLock[#PX.onLock + 1] = function()
-            tagOn, rgbOn = false, false
-            destroyTag()
-            restoreName()
-        end
-    end
-
     PX.secHolders.headless = createSection(PremiumPage, "👑  PREMİUM HEADLESS & KORBLOX")
     PX.infoCard(PremiumPage, trText("💀  Headless & Korblox"), "Headless: yalnızca gerçek karakter kafan ve yüzü görünmez olur; saç, şapka ve baş aksesuarların yerinde kalır. Korblox: sağ bacak silinir. Yalnızca senin ekranında görünür, diğer oyuncular görmez. Yeniden doğunca otomatik uygulanır; kapatınca eski görünüm geri gelir.", 96)
 
@@ -23342,324 +21232,6 @@ PX.secHolders.outfit = createSection(PremiumPage, "👑  PREMİUM KIYAFET DEĞİ
             restore("head")
             restore("kor")
             refresh()
-        end
-    end
-
-    createSection(PremiumPage, "👑  PREMİUM HİLECİ TESPİTİ")
-    PX.infoCard(PremiumPage, trText("🚨  Hileci Tespiti"), "Fly, hız, noclip, spin ve yerin altına girme gibi diğer oyuncuların ekranında görünen hileleri algılar; hile yapan oyuncunun üstüne kırmızı HİLE yazar. ESP gibi sadece kişinin kendi ekranında çalışan hileler dışarıdan görülemez.", 84)
-
-    -- Diğer oyuncuların sunucuya yansıyan hareketlerini izler.
-    -- Etiket ScreenGui üzerinde çizilir: kamera/ekran genişletme efektinden etkilenmeden
-    -- hedef karakterin başının üstünde kalır.
-    do
-        local SAMPLE = 0.15
-        local FLAG_HOLD = 30
-        local SHOW_REASON = true
-        -- Birkaç ardışık örnekte doğrulama: kısa gecikmeyle yakalar, tek karelik sıçramaları ele.
-        local NEED = {fly = 4, speed = 5, noclip = 4, spin = 3}
-        local ORDER = {"fly", "speed", "noclip", "spin"}
-        local REASON_TR = {fly = "Fly", speed = "Hız", noclip = "Noclip / Yer Altı", spin = "Spin"}
-        local REASON_EN = {fly = "Fly", speed = "Speed", noclip = "Noclip / Underground", spin = "Spin"}
-        local RED = Color3.fromRGB(255, 35, 35)
-
-        local detOn, detGen = false, 0
-        local det = {}
-        local playerGui = LocalPlayer:WaitForChild("PlayerGui")
-        local tagLayer
-        local renderConn
-
-        local function newCounters()
-            return {fly = 0, speed = 0, noclip = 0, spin = 0}
-        end
-        local function isEN() return Settings.Language == "EN" end
-
-        local function ensureLayer()
-            if tagLayer and tagLayer.Parent then return tagLayer end
-            tagLayer = Instance.new("ScreenGui")
-            tagLayer.Name = "EZRAGOX_CheatTags"
-            tagLayer.ResetOnSpawn = false
-            tagLayer.IgnoreGuiInset = true
-            tagLayer.DisplayOrder = 10000
-            tagLayer.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            tagLayer.Parent = playerGui
-            return tagLayer
-        end
-
-        local function clearTag(st)
-            if st.gui then pcall(function() st.gui:Destroy() end) end
-            st.gui, st.lbl, st.sub = nil, nil, nil
-        end
-
-        local function clearAll()
-            for _, st in pairs(det) do clearTag(st) end
-            det = {}
-            if tagLayer then pcall(function() tagLayer:Destroy() end) end
-            tagLayer = nil
-        end
-
-        local function showTag(st)
-            if st.gui and st.gui.Parent then
-                st.lbl.Text = isEN() and "CHEAT" or "HİLE"
-                if st.sub then
-                    st.sub.Text = st.reasonKey and ((isEN() and REASON_EN or REASON_TR)[st.reasonKey]) or ""
-                end
-                return
-            end
-
-            local layer = ensureLayer()
-            local root = Instance.new("Frame")
-            root.Name = "EZRAGOX_CheatTag"
-            root.BackgroundTransparency = 1
-            root.AnchorPoint = Vector2.new(0.5, 1)
-            root.Size = UDim2.fromOffset(190, SHOW_REASON and 52 or 32)
-            root.Visible = false
-            root.Parent = layer
-
-            local lbl = Instance.new("TextLabel")
-            lbl.BackgroundTransparency = 1
-            lbl.Size = UDim2.new(1, 0, 0, 31)
-            lbl.Text = isEN() and "CHEAT" or "HİLE"
-            lbl.Font = Enum.Font.GothamBlack
-            lbl.TextSize = 26
-            lbl.TextColor3 = RED
-            lbl.TextStrokeTransparency = 0
-            lbl.TextStrokeColor3 = Color3.new(0, 0, 0)
-            lbl.Parent = root
-
-            local sub
-            if SHOW_REASON then
-                sub = Instance.new("TextLabel")
-                sub.BackgroundTransparency = 1
-                sub.Position = UDim2.fromOffset(0, 29)
-                sub.Size = UDim2.new(1, 0, 0, 20)
-                sub.Text = st.reasonKey and ((isEN() and REASON_EN or REASON_TR)[st.reasonKey]) or ""
-                sub.Font = Enum.Font.GothamBold
-                sub.TextSize = 13
-                sub.TextColor3 = Color3.fromRGB(255, 120, 120)
-                sub.TextStrokeTransparency = 0.15
-                sub.TextStrokeColor3 = Color3.new(0, 0, 0)
-                sub.Parent = root
-            end
-
-            st.gui, st.lbl, st.sub = root, lbl, sub
-        end
-
-        local function updateTagPositions()
-            if not detOn then return end
-            local cam = workspace.CurrentCamera
-            if not cam then return end
-            for p, st in pairs(det) do
-                if st.holdUntil and os.clock() < st.holdUntil and st.gui and st.gui.Parent then
-                    local char = p.Character
-                    local head = char and (char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart"))
-                    if head then
-                        local worldPos = head.Position + Vector3.new(0, head.Size.Y * 0.5 + 1.65, 0)
-                        local point, visible = cam:WorldToViewportPoint(worldPos)
-                        local onScreen = visible and point.Z > 0
-                            and point.X >= -100 and point.X <= cam.ViewportSize.X + 100
-                            and point.Y >= -100 and point.Y <= cam.ViewportSize.Y + 100
-                        st.gui.Visible = onScreen
-                        if onScreen then
-                            -- Etiketin alt kenarı başın biraz üstünde; ekran ölçekleme bunu kaydıramaz.
-                            st.gui.Position = UDim2.fromOffset(point.X, point.Y - 10)
-                        end
-                    else
-                        st.gui.Visible = false
-                    end
-                elseif st.gui then
-                    st.gui.Visible = false
-                end
-            end
-        end
-
-        local function flag(p, st, key, now)
-            st.reasonKey = key
-            st.holdUntil = now + FLAG_HOLD
-            showTag(st)
-            if not st.active then
-                st.active = true
-                notify("Hile Tespit Edildi", p.Name .. "  •  " .. (isEN() and REASON_EN or REASON_TR)[key], 4)
-            end
-        end
-
-        local function step(p, st, now, rp, op)
-            local char = p.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not hrp or not hum or hum.Health <= 0 then
-                st.char, st.pos, st.t = nil, nil, nil
-                return
-            end
-            if st.char ~= char then
-                st.char, st.pos, st.t = char, nil, nil
-                st.grace = now + 3
-                st.c = newCounters()
-            end
-
-            local pos = hrp.Position
-            local prevPos, prevT = st.pos, st.t
-            st.pos, st.t = pos, now
-            if not prevPos then return end
-            local dt = now - prevT
-            if dt <= 0 then return end
-            local delta = pos - prevPos
-            if delta.Magnitude > 120 then
-                st.grace = now + 2
-                st.c = newCounters()
-                return
-            end
-            if now < (st.grace or 0) then return end
-
-            local state
-            pcall(function() state = hum:GetState() end)
-            if hum.SeatPart ~= nil or hum.Sit
-                or state == Enum.HumanoidStateType.Climbing
-                or state == Enum.HumanoidStateType.Swimming then
-                st.c = newCounters()
-                return
-            end
-
-            local c = st.c or newCounters()
-            st.c = c
-            local hv = Vector3.new(delta.X, 0, delta.Z).Magnitude / dt
-            local vy = delta.Y / dt
-            local velocity = hrp.AssemblyLinearVelocity
-            local horizontalVelocity = Vector3.new(velocity.X, 0, velocity.Z).Magnitude
-
-            local hit = workspace:Raycast(pos, Vector3.new(0, -65, 0), rp)
-            local height = hit and (pos.Y - hit.Position.Y - 3) or 65
-            local floorMoving = false
-            if hit and hit.Instance then
-                pcall(function() floorMoving = hit.Instance.AssemblyLinearVelocity.Magnitude > 3 end)
-            end
-
-            -- Fly: yüksekteyken düşmeden ilerleme veya belirgin yükselme.
-            local airborne = height > 10
-            if airborne and (math.abs(vy) < 7 or vy > 22 or velocity.Y > 24) and not floorMoving then
-                c.fly = c.fly + 1
-            else
-                c.fly = math.max(0, c.fly - 1)
-            end
-
-            -- Speed: hem pozisyon farkı hem de fizik hızı kullanılır.
-            local speedLimit = math.max(hum.WalkSpeed, 16) * 1.9 + 10
-            if math.max(hv, horizontalVelocity) > speedLimit and not floorMoving then
-                c.speed = c.speed + 1
-            else
-                c.speed = math.max(0, c.speed - 1)
-            end
-
-            -- Noclip / harita altı.
-            local inside = false
-            if hv > 3 then
-                local ok, parts = pcall(function()
-                    return workspace:GetPartBoundsInRadius(pos, 0.65, op)
-                end)
-                if ok and parts then
-                    for _, part in ipairs(parts) do
-                        if part.CanCollide and part:IsA("Part") and part.Shape == Enum.PartType.Block
-                            and part.Size.Magnitude > 4 then
-                            local lp = part.CFrame:PointToObjectSpace(pos)
-                            local half = part.Size / 2
-                            if math.abs(lp.X) < half.X - 0.35
-                                and math.abs(lp.Y) < half.Y - 0.35
-                                and math.abs(lp.Z) < half.Z - 0.35 then
-                                inside = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-            local under = false
-            if not hit then
-                under = workspace:Raycast(pos, Vector3.new(0, 18, 0), rp) ~= nil
-            end
-            if inside or under then c.noclip = c.noclip + 1
-            else c.noclip = math.max(0, c.noclip - 1) end
-
-            local av = 0
-            pcall(function() av = hrp.AssemblyAngularVelocity.Magnitude end)
-            if av > 32 then c.spin = c.spin + 1
-            else c.spin = math.max(0, c.spin - 1) end
-
-            for _, key in ipairs(ORDER) do
-                if c[key] >= NEED[key] then
-                    flag(p, st, key, now)
-                    break
-                end
-            end
-        end
-
-        local function loop(myGen)
-            local rp = RaycastParams.new()
-            rp.FilterType = Enum.RaycastFilterType.Exclude
-            rp.RespectCanCollide = true
-            local op = OverlapParams.new()
-            op.FilterType = Enum.RaycastFilterType.Exclude
-            while alive and detOn and myGen == detGen do
-                local now = os.clock()
-                local chars = {}
-                for _, pl in ipairs(Players:GetPlayers()) do
-                    if pl.Character then chars[#chars + 1] = pl.Character end
-                end
-                op.FilterDescendantsInstances = chars
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer then
-                        local st = det[p]
-                        if not st then
-                            st = {c = newCounters(), grace = 0}
-                            det[p] = st
-                        end
-                        rp.FilterDescendantsInstances = p.Character and {p.Character} or {}
-                        pcall(step, p, st, now, rp, op)
-                        if st.holdUntil and now < st.holdUntil and p.Character then
-                            pcall(showTag, st)
-                        elseif st.active or st.gui then
-                            st.active = false
-                            st.holdUntil = nil
-                            clearTag(st)
-                        end
-                    end
-                end
-                task.wait(SAMPLE)
-            end
-        end
-
-        bind(Players.PlayerRemoving, function(p)
-            local st = det[p]
-            if st then clearTag(st) end
-            det[p] = nil
-        end)
-
-        PX.detToggle = PX.toggle("🚨  Hileci Tespiti (Kırmızı HİLE Yazısı)", function(v)
-            detOn = v
-            detGen = detGen + 1
-            if v then
-                ensureLayer()
-                if renderConn then renderConn:Disconnect() end
-                renderConn = RunService.RenderStepped:Connect(updateTagPositions)
-                task.spawn(loop, detGen)
-                notify("Hileci Tespiti", "Aktif! Hile yapan oyuncunun üstünde kırmızı HİLE yazar.", 3)
-            else
-                if renderConn then renderConn:Disconnect() renderConn = nil end
-                clearAll()
-            end
-        end)
-        PX.onLock[#PX.onLock + 1] = function()
-            detOn = false
-            detGen = detGen + 1
-            if renderConn then renderConn:Disconnect() renderConn = nil end
-            clearAll()
-        end
-        -- Script her açıldığında (premium doğrulanınca) Hileci Tespiti kendiliğinden başlar;
-        -- aç-kapa yapmak gerekmez. Yalnızca ilk doğrulamada çalışır: sonradan elle kapatırsan
-        -- 20 sn'lik premium kontrolü onu tekrar açmaz.
-        PX.onUnlock = PX.onUnlock or {}
-        PX.onUnlock[#PX.onUnlock + 1] = function()
-            if PX.detAutoDone then return end
-            PX.detAutoDone = true
-            if not detOn and PX.detToggle then PX.detToggle.Set(true) end
         end
     end
 
@@ -25272,10 +22844,9 @@ bind(RunService.RenderStepped, function(rawDt)
         fpsAcc, fpsN = 0, 0
     end
 
-    -- Performans: menü kapalıyken animasyonlar ~12 Hz'e iner; menü açıkken (çok yüksek FPS dışında)
-    -- her karede çalışır, görünüm aynı kalır.
+    -- Performans: arayüz animasyonları menü açıkken ~24 Hz, kapalıyken ~10 Hz güncellenir.
     animAcc = animAcc + rawDt
-    local interval = menuOpen and (1 / 30) or (1 / 12)
+    local interval = menuOpen and (1 / 24) or (1 / 10)
     if animAcc < interval then return end
     local dt = animAcc
     animAcc = 0
