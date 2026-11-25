@@ -285,6 +285,19 @@ local function loadConfig()
 end
 loadConfig()
 
+-- Kullanici istegi: sol tikla ates ve orta tik tetikleyicileri kapali kalsin.
+-- Keskin Vurus klavye kisayolu acik: kayitli tusu koru; atanmamissa E varsayilan olsun.
+if not Settings.MM2ShootKey or Settings.MM2ShootKey == Enum.KeyCode.Unknown then
+    Settings.MM2ShootKey = Enum.KeyCode.E
+end
+Settings.MM2ShootMouse = false
+Settings.ToggleStates["🖱️  Sol Tıkla Keskin Vuruş (Silah Elindeyken)"] = false
+
+-- Orta tik (MouseButton3) bu surumde tamamen devre disi: eski config degerlerini de temizle.
+for _, field in ipairs({"MM2KnifeMouse", "MM2ShootMouse", "MM2GunMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse", "MM2LaserMouse"}) do
+    if Settings[field] == Enum.UserInputType.MouseButton3 then Settings[field] = false end
+end
+
 local listeningForKey = false
 local updateKeyTextCallback = nil
 local listeningFlyKey = false
@@ -8695,16 +8708,9 @@ end)()
     -- olursam olayım" isteğini bozuyordu. Artık hook olsun olmasın HER ZAMAN da çalışır:
     -- shootTarget() kameraya/nişana hiç bakmadan katilin güncel konumunu hesaplayıp direkt
     -- ateş eder, böylece haritanın herhangi bir yerinde, göz teması olmadan da vurabilirsin.
-    bind(UserInputService.InputBegan, function(input, gpe)
-        if gpe then return end
-        if not ((wallOn and Settings.PremiumActive) or SFX.aimActive()) then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and input.UserInputType ~= Enum.UserInputType.Touch then return end
-        local gun = findGun()
-        if gun and gun.Parent == LocalPlayer.Character then
-            SFX.clickShoot()
-        end
-    end)
+    -- Sol tikla ates bu surumde tamamen kapali. Bos callback tutulur;
+    -- InputBegan uzerinden hicbir ates islemi baslatilmaz.
+    bind(UserInputService.InputBegan, function() end)
 
     ---------------------------------------------------------
     -- OYUNCU ÖLDÜRME (katil: bıçak • polis/kahraman: silah)
@@ -10717,9 +10723,12 @@ end)()
     end)()
     keyRow("Keskin Vuruş Tuşu (katil)", "MM2ShootKey")
     local LEFTCLICK_TOGGLE = "🖱️  Sol Tıkla Keskin Vuruş (Silah Elindeyken)"
-    SFX.shootLeftOn = savedOr(LEFTCLICK_TOGGLE, false)
-    createToggle(MM2Page, LEFTCLICK_TOGGLE, SFX.shootLeftOn, function(v)
-        SFX.shootLeftOn = v
+    SFX.shootLeftOn = false
+    Settings.ToggleStates[LEFTCLICK_TOGGLE] = false
+    createToggle(MM2Page, LEFTCLICK_TOGGLE, false, function(v)
+        SFX.shootLeftOn = false
+        Settings.ToggleStates[LEFTCLICK_TOGGLE] = false
+        saveConfig()
     end)
     -- Sabit (hazır) ayarlar: nişan öngörüsü %110, kendi hareketim payı %100
     SFX.leadMul = 1.10
@@ -12313,15 +12322,16 @@ end)()
             return snap
         end
 
-        -- T'den sonra eklenen yeni alet (adı ne olursa olsun) ya da adı bombaya benzeyen alet
+        -- T'den sonra gelen aletler arasından yalnızca adı şaka bombasıyla eşleşeni kabul et.
+        -- Böylece envantere eklenen silah/başka araç yanlışlıkla bomba sanılmaz.
         local function findNewBomb(before)
             local b = findBomb()
             if b then return b end
             for _, holder in ipairs(bombHolders()) do
                 if holder then
                     for _, t in ipairs(holder:GetChildren()) do
-                        if t:IsA("Tool") and not before[t] then
-                            SFX.bombName = t.Name   -- bir sonraki sefer için adını hatırla
+                        if t:IsA("Tool") and not before[t] and isBombName(t.Name) then
+                            SFX.bombName = t.Name
                             return t
                         end
                     end
@@ -12413,22 +12423,54 @@ end)()
             return false
         end
 
-        -- Kuşanılan bombayı atmak için BİR KERE gerçek fare tıklaması gönderir
-        -- (önce VirtualInputManager, olmazsa executor'ın mouse1click'i). Başarılıysa true döner.
-        SFX.bombClick = function()
-            local sent = false
-            pcall(function()
-                local pos = UserInputService:GetMouseLocation()
-                local vim = game:GetService("VirtualInputManager")
-                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
-                task.wait(0.02)
-                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, false, game, 1)
-                sent = true
-            end)
-            if not sent and mouse1click then
-                sent = pcall(mouse1click)
+        -- Sanal fare basışını takip et; bırakma işlemi hata alsa bile ayrıca kurtarılabilir.
+        local bombMouseState = {vim = nil, pos = nil, down = false}
+        SFX.bombMouseRelease = function()
+            if not bombMouseState.down then return true end
+            local released = false
+            if bombMouseState.vim and bombMouseState.pos then
+                released = pcall(function()
+                    bombMouseState.vim:SendMouseButtonEvent(
+                        bombMouseState.pos.X, bombMouseState.pos.Y, 0, false, game, 1
+                    )
+                end)
             end
-            return sent
+            if not released and mouse1release then
+                released = pcall(mouse1release)
+            end
+            -- Bırakma doğrulanmadan durumu temizleme; tekrar kurtarma denemesi mümkün kalsın.
+            if released then bombMouseState.down = false end
+            return released
+        end
+
+        -- Pencere odağı kaybolursa sanal fare tuşunu açık bırakma.
+        bind(UserInputService.WindowFocusReleased, function()
+            pcall(SFX.bombMouseRelease)
+        end)
+
+        bind(UserInputService.WindowFocused, function()
+            if bombMouseState.down then pcall(SFX.bombMouseRelease) end
+        end)
+
+        -- Basma başarılı olduktan sonra bırakma ayrı ve korumalı çalışır.
+        SFX.bombClick = function()
+            local pos
+            local vim
+            local pressed = pcall(function()
+                pos = UserInputService:GetMouseLocation()
+                vim = game:GetService("VirtualInputManager")
+                vim:SendMouseButtonEvent(pos.X, pos.Y, 0, true, game, 1)
+            end)
+            if pressed then
+                bombMouseState.vim, bombMouseState.pos, bombMouseState.down = vim, pos, true
+                pcall(task.wait, 0.02)
+                return SFX.bombMouseRelease()
+            end
+            if mouse1click then
+                local ok = pcall(mouse1click)
+                if ok then return true end
+            end
+            return false
         end
 
         -- Eline aldıktan sonra tıklamadan önceki bekleme (sn). Bomba atılmıyorsa artır (örn. 0.08), daha da hızlı istersen 0.02 yap.
@@ -12452,10 +12494,8 @@ end)()
                     tool = waitForNewBomb(before, 1.2)
                     -- 2) Menüde bomba düğmesi varsa ona tıkla
                     if not tool and clickBombGui() then tool = waitForNewBomb(before, 1.0) end
-                    -- 3) Hâlâ yoksa hotbar tuşlarını (1-9, 0) sırayla dene, bomba eline gelince dur
-                    if not tool then tool = scanSlots(before, false) end
-                    -- 4) Sanal tuş işe yaramadıysa aynısını executor tuşuyla dene
-                    if not tool then tool = scanSlots(before, true) end
+                    -- Hotbar sırası kullanıcıya göre değişebildiğinden 1-9/0 tuşları taranmaz.
+                    -- Bomba bulunduğunda aşağıda Tool referansıyla doğrudan kuşanılır.
                 end
             end
             if not tool then
@@ -14094,6 +14134,15 @@ end)()
                 aimPl, aimSince = nil, 0
                 soundStop()
             end
+        end)
+        -- Pencere odağı kaybolduğunda InputEnded gelmeyebilir; lazerin basılı durumunu sıfırla.
+        bind(UserInputService.WindowFocusReleased, function()
+            lmbDown = false
+            flungOnce = {}
+            hideBeams()
+            clearAimGlow()
+            aimPl, aimSince = nil, 0
+            soundStop()
         end)
 
         -- Atanan tuş (kısayol dağıtıcısı çağırır): aktif ↔ tamamen kapalı
@@ -17586,15 +17635,15 @@ end)()
     ---------------------------------------------------------
     SFX.mouseBoost = SFX.mouseBoost or 0
     do
-        local MB2, MB3 = Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3
+        local MB2 = Enum.UserInputType.MouseButton2
         local heldBtn = {}
         bind(UserInputService.InputBegan, function(input)
             local t = input.UserInputType
-            if t == MB2 or t == MB3 then heldBtn[t] = true end
+            if t == MB2 then heldBtn[t] = true end
         end)
         bind(UserInputService.InputEnded, function(input)
             local t = input.UserInputType
-            if t == MB2 or t == MB3 then heldBtn[t] = false end
+            if t == MB2 then heldBtn[t] = false end
         end)
         bind(UserInputService.WindowFocusReleased, function() heldBtn = {} end)
         function SFX.mouseHeld(b)
@@ -17624,24 +17673,13 @@ end)()
         return false
     end
 
-    local lastMidTick = 0
-    local midGuardUntil = 0   -- orta tık sonrası fare kilidi koruması
-    local midPrevLock = false -- orta tıktan önce shift-lock (LockCenter) açık mıydı
-    local CAS = game:GetService("ContextActionService")
-    local midSinkBound = false
     bind(UserInputService.InputBegan, function(input, gpe)
         if not ready then return end
-        if input.UserInputType == Enum.UserInputType.MouseButton3 then
-            lastMidTick = os.clock()
-            midGuardUntil = os.clock() + 4
-            midPrevLock = (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
-        end
         if gpe and UserInputService:GetFocusedTextBox() then return end
         if GuiService.MenuIsOpen then return end
         if listening then
             local isKb = input.UserInputType == Enum.UserInputType.Keyboard
-            local isMid = input.UserInputType == Enum.UserInputType.MouseButton3
-            if not (isKb or isMid) then return end
+            if not isKb then return end
             local mouseField = (string.gsub(listening.key, "Key$", "")) .. "Mouse"
             if isKb then
                 local kc = input.KeyCode
@@ -17659,25 +17697,11 @@ end)()
                     listening = nil
                     saveConfig()
                 end
-            else
-                local midTaken = false
-                for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse", "MM2LaserMouse"}) do
-                    if f ~= mouseField and Settings[f] == Enum.UserInputType.MouseButton3 then midTaken = true end
-                end
-                if midTaken then
-                    setText(listening.text, "Bu tuş kullanımda")
-                else
-                    Settings[mouseField] = Enum.UserInputType.MouseButton3
-                    Settings[listening.key] = Enum.KeyCode.Unknown
-                    setText(listening.text, "🖱️  Orta Tık")
-                    listening = nil
-                    saveConfig()
-                end
             end
             return
         end
         if listeningForKey or listeningFlyKey or Settings.EmoteListening then return end
-        if hotkeyMatches(input, Settings.MM2ShootKey, Settings.MM2ShootMouse) then
+        if hotkeyMatches(input, Settings.MM2ShootKey, false) then
             shootTarget()
         elseif hotkeyMatches(input, Settings.MM2GunKey, Settings.MM2GunMouse) then
             if SFX.gunKey then SFX.gunKey() end
@@ -17700,99 +17724,14 @@ end)()
         end
     end)
 
-    -- ORTA TIK YEDEK ALGILAMA: bazı oyunlarda / yürütücülerde orta tık InputBegan olayı hiç gelmeyebilir.
-    -- Bu yüzden fare orta tuşunun durumu her karede de kontrol edilir; olay zaten geldiyse tekrar çalıştırılmaz.
-    do
-        local midWasDown = false
-        bind(RunService.Heartbeat, function()
-            if not ready then return end
-            -- Orta tık sonrası fare imleci ekrana kilitli kalırsa (LockCurrentPosition) serbest bırak.
-            -- Yalnızca orta/sağ tuş basılı değilken ve orta tık basışından sonraki 4 sn içinde çalışır;
-            -- birinci şahıs / shift-lock (LockCenter) dokunulmaz.
-            -- Orta tık atanmışsa tuşu Roblox'un kendi kamera / shift-lock işleyicilerinden gizle (sink):
-            -- oyun orta tıkı "shift-lock" gibi yorumlayıp fareyi kilitlemesin.
-            local wantSink = false
-            for _, f in ipairs({"MM2ShootMouse", "MM2GunMouse", "MM2KnifeMouse", "MM2InvisMouse", "MM2FlingMouse", "MM2UnlockMouse", "MM2WallMouse", "MM2AimMouse", "MM2SnipeMouse", "MM2LoopFlingMouse", "MM2LaserMouse"}) do
-                if Settings[f] == Enum.UserInputType.MouseButton3 then wantSink = true end
-            end
-            if wantSink and not midSinkBound then
-                midSinkBound = pcall(function()
-                    CAS:BindActionAtPriority("EZRAGOX_MidSink", function()
-                        return Enum.ContextActionResult.Sink
-                    end, false, Enum.ContextActionPriority.High.Value + 500, Enum.UserInputType.MouseButton3)
-                end)
-            elseif not wantSink and midSinkBound then
-                midSinkBound = false
-                pcall(function() CAS:UnbindAction("EZRAGOX_MidSink") end)
-            end
-            if os.clock() < midGuardUntil and UserInputService.MouseBehavior == Enum.MouseBehavior.LockCurrentPosition then
-                local held = false
-                pcall(function()
-                    held = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3)
-                        or UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-                end)
-                if SFX.mouseHeld and (SFX.mouseHeld(Enum.UserInputType.MouseButton3) or SFX.mouseHeld(Enum.UserInputType.MouseButton2)) then
-                    held = true
-                end
-                if not held then pcall(function() UserInputService.MouseBehavior = Enum.MouseBehavior.Default end) end
-            end
-            local down = false
-            pcall(function() down = UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton3) end)
-            local edge = down and not midWasDown
-            midWasDown = down
-            if not edge then return end
-            if listening or listeningForKey or listeningFlyKey or Settings.EmoteListening then return end
-            if UserInputService:GetFocusedTextBox() or GuiService.MenuIsOpen then return end
-            local pressedAt = os.clock()
-            midGuardUntil = pressedAt + 4
-            if pressedAt - lastMidTick > 0.3 then
-                midPrevLock = (UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter)
-            end
-            task.delay(0.08, function()
-                -- InputBegan bu basışı zaten işlediyse (lastMidTick yeni) tekrar çalıştırma
-                if lastMidTick >= pressedAt - 0.1 then return end
-                lastMidTick = os.clock()
-                local M3 = Enum.UserInputType.MouseButton3
-                if Settings.MM2ShootMouse == M3 then
-                    shootTarget()
-                elseif Settings.MM2GunMouse == M3 then
-                    if SFX.gunKey then SFX.gunKey() end
-                elseif SFX.knifeOn and Settings.MM2KnifeMouse == M3 then
-                    SFX.throwNearest()
-                elseif Settings.MM2InvisMouse == M3 then
-                    if SFX.invisToggle then SFX.invisToggle.Set(not SFX.invisOn) end
-                elseif Settings.MM2FlingMouse == M3 then
-                    flingHotkeyNow()
-                elseif Settings.MM2WallMouse == M3 then
-                    SFX.wallShoot()
-                elseif Settings.MM2AimMouse == M3 then
-                    if SFX.aimToggle then SFX.aimToggle.Set(not SFX.aimOn) end
-                elseif Settings.MM2SnipeMouse == M3 then
-                    if SFX.sheriffSnipe then SFX.sheriffSnipe() end
-                elseif Settings.MM2LoopFlingMouse == M3 then
-                    if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
-                elseif Settings.MM2LaserMouse == M3 then
-                    if SFX.laserToggle then SFX.laserToggle() end
-                end
-            end)
-        end)
-    end
+    -- Orta tik algilama, sink ve fare kilidi degistirme kodu bilerek kaldirildi.
+    -- Boylece MouseButton3 oyun/kamera tarafina dokunulmadan birakilir.
 
     -- SOL TIK İLE KESKİN VURUŞ: silah elindeyken fareye sol tıklayınca katile otomatik ateş.
     -- gpe (menüye / arayüze tıklama) sayılmaz; silah elde değilse sessizce yok sayılır.
     bind(UserInputService.InputBegan, function(input, gpe)
-        if not ready or not SFX.shootLeftOn or gpe or listening then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        if GuiService.MenuIsOpen then return end
-        local gun = findGun()
-        if gun and LocalPlayer.Character then
-            if gun.Parent == LocalPlayer.Character then
-                SFX.clickShoot()
-            else
-                -- Silah elde değil (çantada): shootTarget silahı otomatik ele alıp hemen ateş eder
-                task.defer(shootTarget)
-            end
-        end
+        -- Sol tikla keskin vurus devre disi; fare tiklamasi ates tetiklemez.
+        return
     end)
 
     ---------------------------------------------------------
@@ -25343,6 +25282,9 @@ bind(RunService.RenderStepped, function(rawDt)
 
     -- Görünürlük bilgisi: menü penceresi görünür mü, hangi sekme sayfaları açık, arama sayfası açık mı
     local main = MainFrame.Visible
+    -- Menü gizliyken UI animasyonlarını hesaplamak oyunun kendisine gereksiz kare işi bindiriyordu.
+    -- Menü tekrar açıldığında aynı animasyon döngüsü kaldığı yerden çalışır.
+    if not main then return end
     local tp, vis = UIFlows.tp, UIFlows.vis
     table.clear(tp)
     for _, tb in ipairs(Tabs) do
