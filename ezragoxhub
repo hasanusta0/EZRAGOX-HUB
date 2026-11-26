@@ -1,5 +1,5 @@
 --[[
-    EZRAGOX HUB  •  v6.8 (Akıcı Takip Motoru)
+    EZRAGOX HUB  •  Türk Troll Scripti  •  v6.8 (Akıcı Takip Motoru)
 ]]
 
 --[[
@@ -77,10 +77,14 @@ local GUI_NAME = "EZRAGOX_HUB"
 
 local alive = true
 
--- Varsayılan kare hızını 144 FPS'te tut: sınırsız çizim yükü takılma ve ısınmayı artırabilir.
--- İsteğe bağlı FPS PRO ayarı kendi seçilen sınırını kullanır.
+-- FPS: Roblox'u açılışta mümkün olan en yüksek FPS'e aç (executor setfpscap / FFlag destekliyorsa).
+-- Kendi fonksiyonunda: ana bloğun local sınırına eklenmez.
 ;(function()
-    if setfpscap then pcall(setfpscap, 144) end
+    if setfflag then
+        pcall(setfflag, "DFIntTaskSchedulerTargetFps", "9999")
+        pcall(setfflag, "FFlagTaskSchedulerLimitTargetFpsTo2402", "False")
+    end
+    if setfpscap then pcall(setfpscap, 9999) end
 end)()
 local conns = {}
 local shieldCleanup = nil -- Kalkan özelliği temizliği (closeAll içinde çağrılır)
@@ -158,6 +162,7 @@ local Settings = {
     EmoteKey = Enum.KeyCode.B,       -- Premium Emote: dansı aç/kapa tuşu
     EmoteSel = nil,                  -- Premium Emote: son seçilen dans (ad)
     EmoteListening = false,          -- Emote tuşu seçilirken true
+    TagIdx = nil,                    -- Son seçilen sahte rütbe sırası
     CursorStyle = "🎯",
     CursorSize = 32,
     CursorSpin = false,
@@ -209,6 +214,7 @@ local function saveConfig()
                 AnimPack = Settings.AnimPack,
                 EmoteKey = Settings.EmoteKey.Name,
                 EmoteSel = Settings.EmoteSel,
+                TagIdx = Settings.TagIdx,
                 CursorStyle = Settings.CursorStyle,
                 CursorSize = Settings.CursorSize,
                 CursorSpin = Settings.CursorSpin,
@@ -264,6 +270,7 @@ local function loadConfig()
                 if type(data.AnimPack) == "string" then Settings.AnimPack = data.AnimPack end
                 if data.EmoteKey and Enum.KeyCode[data.EmoteKey] then Settings.EmoteKey = Enum.KeyCode[data.EmoteKey] end
                 if type(data.EmoteSel) == "string" then Settings.EmoteSel = data.EmoteSel end
+                if tonumber(data.TagIdx) then Settings.TagIdx = math.floor(tonumber(data.TagIdx)) end
                 if type(data.CursorStyle) == "string" then Settings.CursorStyle = data.CursorStyle end
                 if tonumber(data.CursorSize) then Settings.CursorSize = math.clamp(math.floor(tonumber(data.CursorSize)), 18, 64) end
                 if type(data.CursorSpin) == "boolean" then Settings.CursorSpin = data.CursorSpin end
@@ -341,6 +348,7 @@ local EN_TEXT = {
     ["📡  Işınlanarak Farm (Kısa Atlamalarla, Turbo'dan Önceliklidir)"] = "📡 Teleport Farm (Short Hops, Overrides Turbo)",
     ["⏱️  Işınlanma Aralığı  •  atılırsan artır"] = "⏱️ Teleport Interval • raise if kicked",
     ["📏  Atlama Mesafesi  •  atılırsan azalt"] = "📏 Hop Distance • lower if kicked",
+    ["👑  PREMİUM KIYAFET DEĞİŞTİRİCİ"] = "👑 PREMIUM OUTFIT CHANGER",
     ["💥  Seçili Oyuncuyu Fırlat (1000x)"] = "💥 Fling Selected Player (1000x)",
     ["💥  Vuruş Animasyonu (Katil Vurulunca)"] = "💥 Hit Animation (When Killer Is Hit)",
     ["💪  İtme Gücü"] = "💪 Knockback Strength",
@@ -414,12 +422,30 @@ local EN_TEXT = {
     ["Tüm oyuncular tekrar gösteriliyor."]="All players are shown again.",
     ["Sadece seçili oyuncu duvar arkasından görünüyor!"]="Only the selected player is visible through walls!",
     ["Oyuncular duvar arkasından görünüyor!"]="Players are visible through walls!",
+    ["HEDEF OYUNCU SEÇİMİ VE ARAMA"]="TARGET PLAYER SELECTION AND SEARCH",
+    ["Oyuncu Ara / Seç"]="Find / Select Player",
+    ["AKTİF TROLL ÖZELLİKLERİ (12 ADET)"]="ACTIVE TROLL FEATURES (12)",
+    ["AKTİF TROLL ÖZELLİKLERİ (11 ADET)"]="ACTIVE TROLL FEATURES (11)",
+    ["🔗  1. Seçilen Kişiye Yapış"]="🔗  1. Attach to Selected Player",
+    ["📎  1b. Oyuncuyu Kendine Yapıştır"]="📎  1b. Attach Player to You",
+    ["💥  3. Oyuncuya Patlama Efekti"]="💥  3. Explosion Effect on Player",
+    ["☄️  5. Kafasına Taş/Blok Düşür"]="☄️  5. Drop Rock/Block on Player",
+    ["📌  6. Oyuncuyu Olduğu Yere Sabitle"]="📌  6. Freeze Player in Place",
+    ["💃  7. Oyuncuyu Sars / Sallantı Ver"]="💃  7. Shake Player",
+    ["🕶️  8. Hedefin Bilgilerini Al"]="🕶️  8. Get Target Information",
+    ["🔄  9. Kamera Efekti (FOV Trolling)"]="🔄  9. Camera Effect (FOV Troll)",
+    ["💨  10. Sunucudaki Herkesi Zıplat"]="💨  10. Make Everyone Jump",
+    ["👁️  11. Seçilen Oyuncuyu İzle"]="👁️  11. Spectate Selected Player",
+    ["🚀  12. Seçilen Oyuncunun Yanına Işınlan"]="🚀  12. Teleport to Selected Player",
+    ["🎣  13. Seçilen Oyuncuyu Yanıma Çek"]="🎣  13. Pull Selected Player to Me",
+    ["💥  14. Seçili Oyuncuyu Fırlat (1000x)"]="💥  14. Fling Selected Player (1000x)",
     ["PREMİUM KİLİDİ"]="PREMIUM LOCKED",
     ["🔄  Premium Durumunu Yenile"]="🔄  Refresh Premium Status",
     ["🔑  Premium İste  (Discord Sunucusu)"]="🔑  Request Premium (Discord)",
     ["PREMİUM DURUMU"]="PREMIUM STATUS",
     ["👑  PREMİUM HAREKET"]="👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"]="👑  PREMIUM APPEARANCE",
+    ["👑  PREMİUM OTO TOPLAYICI"]="👑  PREMIUM AUTO COLLECTOR",
     ["👑  PREMİUM ARAÇLAR"]="👑  PREMIUM TOOLS",
     ["PREMİUM YÖNETİMİ"]="PREMIUM MANAGEMENT",
     ["✅  Premium Ver"]="✅  Grant Premium", ["❌  Premium Kaldır"]="❌  Remove Premium",
@@ -437,6 +463,7 @@ local EN_TEXT = {
     ["Fly Kapandı"]="Fly Disabled", ["Uçuş modu kapatıldı."]="Flight mode disabled.",
     ["ESP Aktif"]="ESP Enabled", ["ESP Kapandı"]="ESP Disabled",
     ["Oyuncu Seçilmedi"]="No Player Selected",
+    ["Önce bir Roblox kullanıcı adı yaz."]="Enter a Roblox username first.",
     ["Kopyalandı"]="Copied", ["Kopyalanamadı"]="Copy Failed",
     ["Discord adresi kopyalandı ✅"]="Discord address copied ✅",
     ["Premium Gerekli"]="Premium Required", ["Hata"]="Error",
@@ -464,6 +491,18 @@ local EN_TEXT = {
     ["Gizli Anahtar Yok"]="Missing Secret Key",
     ["Veritabanı Yok"]="Database Unavailable",
     ["Işınlandın"]="Teleported",
+    ["İzleme Aktif"]="Spectating",
+    ["İzleme Kapandı"]="Spectating Stopped",
+    ["Hedef Bilgisi"]="Target Information",
+    ["Kamera Troll"]="Camera Troll",
+    ["Toplu Zıplama"]="Mass Jump",
+    ["Yanına Çekildi"]="Pulled to You",
+    ["Kısmen Çekildi"]="Partially Pulled",
+    ["Çekilemedi"]="Could Not Pull",
+    ["Sallantı Bitti"]="Shaking Finished",
+    ["Blok Düştü"]="Block Dropped",
+    ["Sabitlendi"]="Frozen",
+    ["Patlama"]="Explosion",
     ["Tıkla-Işınlan"]="Click Teleport",
     ["Gökkuşağı Aura"]="Rainbow Aura",
     ["Uzaklaşma sınırı kaldırıldı."]="Zoom limit removed.",
@@ -504,6 +543,7 @@ local EN_TEXT = {
     ["🌌 Gökyüzü uygulanamadı (kod hatası)."]="🌌 Could not apply sky (script error).",
     ["💀  Headless (Kafasız)"]="💀  Headless",
     ["🦴  Korblox (Sağ Bacak)"]="🦴  Korblox (Right Leg)",
+    ["🚨  Hileci Tespiti (Kırmızı HİLE Yazısı)"]="🚨  Cheater Detection (Red CHEATER Label)",
     ["🛡️  Anti-AFK (Atılmayı Engelle)"]="🛡️  Anti-AFK (Prevent Being Kicked)",
     ["Premium Gerekli"]="Premium Required",
     ["Önce geçerli bir anahtar gir."]="Enter a valid key first.",
@@ -516,7 +556,10 @@ local EN_TEXT = {
     ["DÜŞEN SİLAH"]="DROPPED GUN", ["OTOMATİK KAÇIŞ"]="AUTO ESCAPE",
     ["OTO FARM"]="AUTO FARM", ["IŞINLANMA"]="TELEPORTATION",
     ["👑  PREMİUM HEADLESS & KORBLOX"]="👑  PREMIUM HEADLESS & KORBLOX",
+    ["👑  PREMİUM HİLECİ TESPİTİ"]="👑  PREMIUM CHEATER DETECTION",
     ["👑  PREMİUM ARAÇLAR"]="👑  PREMIUM TOOLS",
+    ["👑  PREMİUM OTO TOPLAYICI"]="👑  PREMIUM AUTO COLLECTOR",
+    ["👑  PREMİUM SAHTE TAG & RGB İSİM"]="👑  PREMIUM FAKE TAG & RGB NAME",
     ["🚀  PREMİUM FPS ARTIRICI"]="🚀  PREMIUM FPS BOOSTER",
     ["👑  PREMİUM HAREKET"]="👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"]="👑  PREMIUM APPEARANCE",
@@ -538,7 +581,7 @@ local EN_REPLACEMENTS = {
     ["Sağ Bacak"] = "Right Leg",
     ["Yerin Altında Yatay"] = "Horizontal Underground",
     ["Katil Yaklaşınca"] = "When the Murderer Approaches",
-    ["EZRAGOX HUB"] = "EZRAGOX HUB",
+    ["TÜRK TROLL SCRİPTİ"] = "TURKISH TROLL SCRIPT",
     ["BAĞLANDI"] = "CONNECTED",
     ["KULLANICI DOĞRULANDI"] = "USER VERIFIED",
     ["Hazır!"] = "Ready!",
@@ -550,7 +593,9 @@ local EN_REPLACEMENTS = {
     ["İsim yaz (örn: hasan)"] = "Enter a name (e.g. Alex)",
     ["Eşleşen oyuncu yok"] = "No matching players",
     ["Server İçinde"] = "In This Server",
+    ["Genel Kullanıcı"] = "Global User",
     ["İsmin başını yaz, liste süzülür"] = "Type the start of a name to filter the list",
+    ["Roblox kullanıcı adı yaz"] = "Enter a Roblox username",
     ["Şifre"] = "Password",
     ["Devam etmek için yönetim şifresini gir."] = "Enter the admin password to continue.",
     ["YÖNETİM GİRİŞİ"] = "ADMIN LOGIN",
@@ -573,16 +618,19 @@ local EN_REPLACEMENTS = {
     ["Türkçe"] = "Turkish",
     ["Uygula"] = "Apply",
     ["Seçilen Oyuncuyu Kopyala"] = "Copy Selected Player",
+    ["Karakteri Komple Kopyala"] = "Copy Entire Character",
     ["Saç"] = "Hair",
     ["Üst"] = "Top",
     ["Alt"] = "Bottom",
     ["Aksesuar"] = "Accessories",
+    ["Önce bir Roblox kullanıcı adı yaz."] = "Enter a Roblox username first.",
     ["Listeden bir oyuncu seç (ya da adını yaz)."] = "Select a player from the list (or enter their name).",
     ["Bu adda bir Roblox hesabı yok: "] = "No Roblox account exists with this name: ",
     ["Kullanıcı Adı Boş"] = "Username Is Empty",
     ["Kullanıcı Bulunamadı"] = "User Not Found",
     ["Oyuncu Seçilmedi"] = "No Player Selected",
     ["Hedef Seçildi"] = "Target Selected",
+    ["Hedef Bilgisi"] = "Target Information",
     ["Hesap"] = "Account",
     ["Durum"] = "Status",
     ["Lütfen önce yukarıdan hedef oyuncu seçin!"] = "Select a target player above first!",
@@ -630,7 +678,9 @@ local EN_REPLACEMENTS = {
     ["Aynı sunucuya yeniden bağlanılıyor..."] = "Reconnecting to the same server...",
     ["Aktif! Boşta kalsan da atılmazsın."] = "Enabled! You will not be kicked for being idle.",
     ["En yakın paradan başlayıp tek tek toplanacak."] = "Collecting one by one, starting with the nearest item.",
+    ["Şu an eşleşen yok. Yeni spawn olanlar otomatik alınır. İstersen 'Özel İsim' yaz."] = "No matches right now. Newly spawned items will be collected automatically. You can enter a custom name.",
     [" parça toplandı."] = " items collected.",
+    ["Hiç bulunamadı. 'Özel İsim' kutusuna paranın adını yaz (örn: Coin)."] = "Nothing found. Enter the item name in the 'Custom Name' box (e.g. Coin).",
     ["Önce veritabanı gizli anahtarını kaydet."] = "Save the database secret key first.",
     ["Veritabanı adresini kontrol et."] = "Check the database URL.",
     ["Henüz premium verilen hesap yok."] = "No accounts have been granted premium yet.",
@@ -685,6 +735,16 @@ local EN_REPLACEMENTS = {
     ["Sky Etkisiz"] = "Sky Launch Ineffective",
     ["Boşluğa Fırlatıldı"] = "Launched into the Void",
     ["Etkisiz"] = "Ineffective",
+    ["Yanına Çekildi"] = "Pulled to You",
+    ["Kısmen Çekildi"] = "Partially Pulled",
+    ["Çekilemedi"] = "Could Not Pull",
+    ["Sallantı Bitti"] = "Shaking Finished",
+    ["Patlama"] = "Explosion",
+    ["Blok Düştü"] = "Block Dropped",
+    ["Sabitlendi"] = "Frozen",
+    ["Toplu Zıplama"] = "Mass Jump",
+    ["İzleme Aktif"] = "Spectating Enabled",
+    ["İzleme Kapandı"] = "Spectating Disabled",
     ["Işınlandın"] = "Teleported",
     ["Yapışma Aktif"] = "Attachment Enabled",
     ["Yapışma Kapandı"] = "Attachment Disabled",
@@ -754,8 +814,15 @@ local EN_REPLACEMENTS = {
     ["🔭  Görüş Açısı (FOV)"] = "🔭  Field of View (FOV)",
     ["🔍  Kamera Zoom Sınırını Kaldır"] = "🔍  Remove Camera Zoom Limit",
     ["🌙  Gün Saati"] = "🌙  Time of Day",
+    ["🌍  Genel Kullanıcı"] = "🌍  Global User",
     ["🖥️  Server İçinde"] = "🖥️  In This Server",
+    ["Genel Kullanıcı"] = "Global User",
+    ["Roblox kullanıcı adı yaz"] = "Enter Roblox username",
+    ["👑  PREMİUM OTO TOPLAYICI"] = "👑  PREMIUM AUTO COLLECTOR",
+    ["Özel İsim"] = "Custom Name",
+    ["örn: Coin, Gold  (boş = otomatik bul)"] = "e.g. Coin, Gold (blank = auto-detect)",
     ["👑  PREMİUM ARAÇLAR"] = "👑  PREMIUM TOOLS",
+    ["👑  PREMİUM HİLECİ TESPİTİ"] = "👑  PREMIUM CHEATER DETECTION",
     ["👑  PREMİUM HEADLESS & KORBLOX"] = "👑  PREMIUM HEADLESS & KORBLOX",
     ["💀  Headless & Korblox"] = "💀  Headless & Korblox",
     ["Headless: yalnızca gerçek karakter kafan ve yüzü görünmez olur; saç, şapka ve baş aksesuarların yerinde kalır. Korblox: sağ bacak silinir. Yalnızca senin ekranında görünür, diğer oyuncular görmez. Yeniden doğunca otomatik uygulanır; kapatınca eski görünüm geri gelir."] = "Headless: only your actual character head and face become invisible; hair, hats, and head accessories stay. Korblox: the right leg is removed. Only visible on your screen, other players cannot see it. Re-applied on respawn; turning it off restores your original look.",
@@ -772,6 +839,12 @@ local EN_REPLACEMENTS = {
     ["Executor bacak mesh'ini değiştirmeyi desteklemiyor; sağ bacak gizlendi."] = "Your executor does not support changing leg meshes; the right leg was hidden instead.",
     ["Korblox bacağı yüklenemedi (executor desteklemiyor olabilir); sağ bacak gizlendi."] = "Could not load the Korblox leg (your executor may not support it); the right leg was hidden instead.",
     ["Korblox bacağı yükleniyor..."] = "Loading the Korblox leg...",
+    ["🚨  Hileci Tespiti"] = "🚨  Cheater Detection",
+    ["🚨  Hileci Tespiti (Kırmızı HİLE Yazısı)"] = "🚨  Cheater Detection (Red CHEAT Tag)",
+    ["Fly, hız, noclip, spin ve yerin altına girme gibi diğer oyuncuların ekranında görünen hileleri algılar; hile yapan oyuncunun üstüne kırmızı HİLE yazar. ESP gibi sadece kişinin kendi ekranında çalışan hileler dışarıdan görülemez."] = "Detects cheats that are visible to other players such as fly, speed, noclip, spin and going under the map, and writes a red CHEAT tag above the offender. Client-only cheats such as ESP cannot be detected from the outside.",
+    ["Hileci Tespiti"] = "Cheater Detection",
+    ["Aktif! Hile yapan oyuncunun üstünde kırmızı HİLE yazar."] = "Active! A red CHEAT tag appears above players who are cheating.",
+    ["Hile Tespit Edildi"] = "Cheat Detected",
     ["👑  PREMİUM HAREKET"] = "👑  PREMIUM MOVEMENT",
     ["👑  PREMİUM GÖRÜNÜM"] = "👑  PREMIUM APPEARANCE",
     ["PREMİUM KİLİDİ"] = "PREMIUM LOCK",
@@ -787,6 +860,7 @@ local EN_REPLACEMENTS = {
     ["VERİTABANI GİZLİ ANAHTARI  (sadece bu cihazda saklanır)"] = "DATABASE SECRET KEY (stored on this device only)",
     ["Sadece bu cihazda saklanır"] = "Stored on this device only",
     ["👤  "] = "👤  ",
+    ["Kendi Görünümüme Dön"] = "Return to My Outfit",
     ["Görünümünü Kuşan"] = "Equip Outfit",
     ["Oyuncuyu Ara"] = "Search Player",
     ["Oyuncu Bul"] = "Find Player",
@@ -1175,7 +1249,7 @@ local Intro = (function()
     local FLASH_MIN = AYAR.PARLAK_FLASLAR and 0 or 0.7 -- flaşın en parlak hali
 
     local LOGO_TEXT = "EZRAGOX"
-    local SUB_TEXT = "EZRAGOX HUB"
+    local SUB_TEXT = "TÜRK TROLL SCRİPTİ"
     local LN = #LOGO_TEXT
     local LETTER_W, LETTER_GAP = 60, 4
     local LOGO_W = LN * (LETTER_W + LETTER_GAP) - LETTER_GAP
@@ -1195,7 +1269,7 @@ local Intro = (function()
         {28, "Arayüz hazırlanıyor"},
         {44, "Efektler ayarlanıyor"},
         {60, "Karakter doğrulanıyor"},
-        {76, "Özellikler hazırlanıyor"},
+        {76, "Troll araçları senkronize ediliyor"},
         {90, "Son kontroller yapılıyor"},
         {99, "Hazır!"},
     }
@@ -1214,7 +1288,7 @@ local Intro = (function()
         {2.95, "OK", "arayüz çerçevesi hazır"},
         {3.40, "!!", "erişim anahtarı doğrulanıyor..."},
         {4.10, "OK", "karakter verisi eşleşti"},
-        {4.80, "OK", "özellikler hazır"},
+        {4.80, "OK", "troll araçları senkronize"},
         {5.60, "OK", "erişim onaylandı"},
     }
 
@@ -2923,7 +2997,7 @@ local BrandTagline = new("TextLabel", {
     Size = UDim2.new(1, -190, 0, 16),
     Position = UDim2.new(0, 76, 0, 46),
     BackgroundTransparency = 1,
-    Text = "EZRAGOX HUB   /   HİLE İŞİ GÖNÜL İŞİ   •   v6.6",
+    Text = "TÜRK TROLL SCRİPTİ   /   HİLE İŞİ GÖNÜL İŞİ   •   v6.6",
     TextColor3 = Color3.fromRGB(255, 70, 82),
     TextSize = 11,
     Font = Enum.Font.GothamBold,
@@ -4121,7 +4195,7 @@ local function createTab(name, icon)
     -- Sekme simgeleri ana sayfadaki gibi tek renkli, sade ve net karakterlerdir.
     -- Özellikler: ✦ yıldız, Ayarlar: ☰ liste; Ana Sayfa ⌂ ile aynı sade, tek renkli stil.
     iconLabel.TextColor3 = Color3.fromRGB(255, 75, 85)
-    iconLabel.TextSize = 17
+    iconLabel.TextSize = (name == "Troll") and 19 or 17
 
     -- Özellikler ve Ayarlar simgeleri yazı tipinde kutu çıktığı için çizgi çizgi
     -- (UI parçalarıyla) çizilir: Özellikler = parıltı, Ayarlar = dişli.
@@ -5414,7 +5488,7 @@ local FeaturesPage = createTab("Özellikler", "")
     -- FIRLATMA (1000x GÜÇ)  •  seçili oyuncuyu fizik çarpışmasıyla fırlatır
     -- Not: Diğer oyuncunun karakterinde doğrudan yapılan değişiklikler sunucuya
     -- yansımaz; gerçek etki kendi karakterini hedefin içine ışınlayıp anormal
-    -- derecede yüksek hızla çarptırmaktan gelir (ortak fling motoruyla
+    -- derecede yüksek hızla çarptırmaktan gelir (Troll sekmesindeki fling ile
     -- aynı yöntem, istek üzerine gücü 1000 kat artırılmış hali).
     ---------------------------------------------------------
     -- LOBİ / ÖLÜ DÜZELTMESİ: lobideyken (ya da ölüyken) karakterin çarpışma grubu haritadaki oyuncularla
@@ -5447,8 +5521,8 @@ local FeaturesPage = createTab("Özellikler", "")
     -- Tek fark: YARHM'deki "Oyuncu zaten flung, tekrar fırlatılsın mı?" onay penceresi burada
     -- yok (bu scriptte YARHM'deki gibi bir dialog sistemi yok), o yüzden doğrudan devam eder.
     local function flingTarget(plr, killMode)
-        -- killMode == true  → FARM / otomatik akış: eskisi gibi (en fazla 3 denemeye kadar tekrar eder)
-        -- killMode ~= true  → SENİN ELLE attığın fling (buton / tuş / çift tık / uzaktan vuruş): SADECE 1 KEZ dener
+        -- TÜM modlar (buton / tuş / çift tık / dokunma / sürekli / farm / şerif avı): hedefe SADECE 1 KEZ dener,
+        -- ard arda tekrar denemez. (killMode == true yalnızca farm akışındaki "bitene kadar bekle" davranışını belirler.)
         local retryMode = (killMode == true)
         killMode = true   -- TÜM fırlatmalar yukarı değil AŞAĞI (boşluğa) fırlatır: hedef direkt ölsün
         if mm2FlingBusy then
@@ -5500,7 +5574,7 @@ local FeaturesPage = createTab("Özellikler", "")
             if Character and Humanoid and RootPart and TCharacter then
                 -- Ölüm modunda hedef ölmediyse (silah düşmedi / yere indi) en fazla 3 kez tekrar dener.
                 -- Her denemede hedefin GÜNCEL konumuna yeniden çarpar ve yine aşağı (boşluğa) fırlatır.
-                local MAX_ATTEMPTS = retryMode and 3 or 1   -- elle atılan fling: 1 deneme • farm: 3 deneme
+                local MAX_ATTEMPTS = 1   -- HER MODDA TEK DENEME (tekrar yok)
                 local attempt = 0
                 local targetDied = false
 
@@ -5557,24 +5631,42 @@ local FeaturesPage = createTab("Özellikler", "")
                         break
                     end
 
+                    -- Hareketli hedef payı (v6.21): hedefin EKRANINDA görünen konumu, ağ gecikmesi + arayüz
+                    -- ara-değerlemesi kadar geride kalır. Yürüyen hedefe tam o konuma ışınlanınca arkasında
+                    -- kalıp ıskalıyordu (duran hedefte sorun yoktu). Artık hedefin yatay hızı × (ping + 0.08 sn)
+                    -- kadar ÖNÜNE konumlanılır. Duran hedefte ya da hedef zaten fırlayıp hızlanmışsa öteleme YOK.
+                    local leadT = 0.18
+                    do
+                        local okp, pv = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+                        leadT = math.clamp(((okp and pv) or 100) / 1000, 0.05, 0.25) + 0.08
+                    end
+
                     local FPos = function(BasePart, Pos, Ang)
-                        -- DİKEY FLING: hedefin tam ÜSTÜNDEN çarp. Yana kayma yok: sabit ±2.25 payları kaldırıldı,
-                        -- hareket eden hedef için ileri bakma payı en fazla 4 stud. Hız yalnızca Y ekseninde (aşağı),
-                        -- dönme hızı sıfır → hedef sadece dikey gider, yanındaki oyuncular savrulmaz.
-                        local hx, hz = Pos.X, Pos.Z
-                        local hm = math.sqrt(hx * hx + hz * hz)
-                        if hm > 4 then hx, hz = hx / hm * 4, hz / hm * 4 end
-                        Pos = CFrame.new(hx, math.abs(Pos.Y) + 0.5, hz)
-                        RootPart.CFrame = CFrame.new(BasePart.Position) * Pos * Ang
-                        Character:SetPrimaryPartCFrame(CFrame.new(BasePart.Position) * Pos * Ang)
+                        -- DİKEY FLING (yukarı-aşağı): yana kayma YOK (hedefin tam üstünde/altında) — yalnızca
+                        -- yürüyen hedef için gecikme payı kadar ileri konumlanır (yukarıdaki leadT).
+                        -- Ang HER ZAMAN kimlik: kendi karakterim dönmez, düz durarak iner/çıkar. Pos.Y'nin işareti
+                        -- korunur (eskiden math.abs yüzünden hep üstte kalıp hiç "aşağı" gitmiyordu).
+                        Pos = CFrame.new(0, Pos.Y, 0)
+                        local at = BasePart.Position
+                        local v = BasePart.AssemblyLinearVelocity
+                        local hv = Vector3.new(v.X, 0, v.Z)
+                        local sp = hv.Magnitude
+                        if sp > 2 and sp < 70 then
+                            local off = hv * leadT
+                            if off.Magnitude > 10 then off = off.Unit * 10 end
+                            at = at + off
+                        end
+                        RootPart.CFrame = CFrame.new(at) * Pos
+                        Character:SetPrimaryPartCFrame(CFrame.new(at) * Pos)
                         RootPart.Velocity = Vector3.new(0, -9e9, 0)
                         RootPart.RotVelocity = Vector3.zero
                     end
 
                     local SFBasePart = function(BasePart)
-                        local TimeToWait = killMode and 4.5 or 2
+                        -- Süre kısaltıldı (v6.21): önceden en fazla 4.5 sn deneniyordu, bu da
+                        -- tutmayan denemelerde fırlatmayı uzun hissettiriyordu. Artık en fazla 2.5 sn.
+                        local TimeToWait = killMode and 2.5 or 2
                         local Time = tick()
-                        local Angle = 0
                         local startY = BasePart.Position.Y
                         -- lobi / ölü: çarpışma grubunu hedefle eşitle (fling bitince geri alınır)
                         if restoreCG then pcall(restoreCG) restoreCG = nil end
@@ -5582,63 +5674,15 @@ local FeaturesPage = createTab("Özellikler", "")
 
                         repeat
                             if RootPart and THumanoid then
-                                if BasePart.Velocity.Magnitude < 50 then
-                                    Angle = Angle + 100
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0) + THumanoid.MoveDirection * BasePart.Velocity.Magnitude / 1.25, CFrame.Angles(math.rad(Angle), 0, 0))
-                                    task.wait()
-                                else
-                                    FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, -THumanoid.WalkSpeed), CFrame.Angles(0, 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, THumanoid.WalkSpeed), CFrame.Angles(math.rad(90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, -TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(0, 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, 1.5, TRootPart.Velocity.Magnitude / 1.25), CFrame.Angles(math.rad(90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(math.rad(-90), 0, 0))
-                                    task.wait()
-
-                                    FPos(BasePart, CFrame.new(0, -1.5, 0), CFrame.Angles(0, 0, 0))
-                                    task.wait()
-                                end
+                                -- TEK, SABİT desen: dönme YOK (karakterim düz durur), yana kayma YOK (hep hedefin
+                                -- tam üstünde/altında — yürüse de koşsa da yeri hep aynı yerde bulunur), sadece
+                                -- hızlı yukarı-aşağı iniş-çıkış. Her çift hareketten sonra hemen kontrol edilir
+                                -- (eskiden 8 adım sonra bakılıyordu) → ilk darbede tutmazsa hemen devam eder,
+                                -- tutarsa hemen durur: "hemen tak diye" atar, uzun sürmez.
+                                FPos(BasePart, CFrame.new(0, 2.0, 0))
+                                task.wait()
+                                FPos(BasePart, CFrame.new(0, -2.0, 0))
+                                task.wait()
                             else
                                 break
                             end
@@ -5683,13 +5727,14 @@ local FeaturesPage = createTab("Özellikler", "")
                     if restoreCG then pcall(restoreCG) restoreCG = nil end
                     Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
                     if killMode and THumanoid then
-                        -- kendimi hemen eski yerime al, hedefin düşüp ölmesini buradan izle (en fazla 3 sn)
+                        -- kendimi hemen eski yerime al, hedefin düşüp ölmesini buradan izle
+                        -- Süre kısaltıldı (v6.21): önceden en fazla 3 sn bekleniyordu, artık en fazla 1.5 sn.
                         pcall(function()
                             RootPart.Velocity, RootPart.RotVelocity = Vector3.zero, Vector3.zero
                             RootPart.CFrame = flingOldPos * CFrame.new(0, .5, 0)
                         end)
                         local tk = os.clock()
-                        while os.clock() - tk < 3 and THumanoid.Parent and THumanoid.Health > 0 do task.wait() end
+                        while os.clock() - tk < 1.5 and THumanoid.Parent and THumanoid.Health > 0 do task.wait() end
                         targetDied = not (THumanoid.Parent and THumanoid.Health > 0)
                     else
                         targetDied = true
@@ -5745,19 +5790,50 @@ local FeaturesPage = createTab("Özellikler", "")
             touchConns = {}
         end
         -- DOKUNARAK = "walk fling": karakterin yerinde kalır, normal yürürsün (ışınlanma / dönme YOK).
-        -- Biri sana dokununca (ya da sen ona) kısa bir an fizik hızı verilir; hız bir sonraki
-        -- karede geri alındığı için ekranında hiçbir şey görünmez, dokunan oyuncu fırlar.
-        local flingUntil, wfRunning, lastTouchNotify = 0, false, 0
+        -- Yürürken ayar (v6.21): eskiden bir dokunuş = TEK karelik tek patlamaydı; yürürken temas anı
+        -- çok kısa sürdüğü için patlama çoğunlukla hedefi kaçırıyordu. Şimdi:
+        --   • dokunma/yakınlık tetikleyince WF.hold sn boyunca HER KARE patlama uygulanır (kısa seri),
+        --   • Touched olayı kaçsa bile yakınlık taraması (WF.range stud) yanından geçeni yakalar,
+        --   • aynı oyuncuya tekrar tetikleme aralığı 4 sn -> WF.cool sn.
+        -- Hız her karede geri alındığı için ekranında hiçbir şey görünmez. Ayarlar aşağıdaki WF tablosunda.
+        local WF = {hold = 0.55, range = 3.8, cool = 1.5, scanGap = 0.04, scanAt = 0}
+        local flingUntil, wfRunning, lastTouchNotify = 0, false, 0   -- flingUntil: os.clock() zamanı (patlama bitişi)
+        local touchCool = setmetatable({}, {__mode = "k"})   -- oyuncu -> son tetikleme zamanı
+        local function wfTrigger(pl, now, how)
+            if touchCool[pl] and now - touchCool[pl] < WF.cool then return end
+            touchCool[pl] = now
+            flingUntil = now + WF.hold
+            if now - lastTouchNotify > 1.5 then
+                lastTouchNotify = now
+                notify("🤝  Dokunma Fırlatması", pl.Name .. how, 2)
+            end
+        end
         local function startWalkFling()
             if wfRunning then return end
             wfRunning = true
             task.spawn(function()
                 while alive and touchOn do
                     RunService.Heartbeat:Wait()
-                    if os.clock() < flingUntil and not mm2FlingBusy then
+                    if not mm2FlingBusy then
                         local ch = LocalPlayer.Character
                         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-                        if hrp then
+                        local now = os.clock()
+                        -- Yakınlık taraması (saniyede ~25 kez): dokunma olayı kaçsa bile yanından geçeni yakala
+                        if hrp and now >= WF.scanAt then
+                            WF.scanAt = now + WF.scanGap
+                            local myPos = hrp.Position
+                            for _, pl in ipairs(Players:GetPlayers()) do
+                                if pl ~= LocalPlayer then
+                                    local oc = pl.Character
+                                    local ohrp = oc and oc:FindFirstChild("HumanoidRootPart")
+                                    if ohrp and (ohrp.Position - myPos).Magnitude <= WF.range and isAlive(pl) then
+                                        wfTrigger(pl, now, " yakınında, fırlatılıyor!")
+                                    end
+                                end
+                            end
+                        end
+                        -- Patlama: tetiklendikten sonra WF.hold sn boyunca her kare tekrarlanır
+                        if hrp and hrp.Parent and flingUntil > now then
                             local vel = hrp.AssemblyLinearVelocity
                             hrp.AssemblyLinearVelocity = Vector3.new(vel.X * 10000, -10000, vel.Z * 10000)
                             RunService.RenderStepped:Wait()
@@ -5776,12 +5852,7 @@ local FeaturesPage = createTab("Özellikler", "")
             if not touchOn then return end
             local pl = plrFromPart(other)
             if not pl then return end
-            flingUntil = os.clock() + 1.5
-            local now = os.clock()
-            if now - lastTouchNotify > 1.5 then
-                lastTouchNotify = now
-                notify("🤝  Dokunma Fırlatması", pl.Name .. " sana dokundu, fırlatılıyor!", 2)
-            end
+            wfTrigger(pl, os.clock(), " sana dokundu, fırlatılıyor!")
         end
         local function hookChar(ch)
             clearTouch()
@@ -5867,7 +5938,7 @@ local FeaturesPage = createTab("Özellikler", "")
         return best
     end
 
-    -- Bir oyuncuya tıklayıp fling yapınca (etiket menüsü / çift tık) ismi otomatik olarak
+    -- Bir oyuncuya tıklayıp fling yapınca (etiket menüsü / çift tık / Troll sekmesi) ismi otomatik olarak
     -- FIRLATMA bölümlerindeki isim kutularına yazılır; fırlatma tuşu artık o oyuncuyu fırlatır.
     Settings.FlingBoxes = Settings.FlingBoxes or {}
     Settings.SetFlingTarget = function(plr)
@@ -5876,11 +5947,6 @@ local FeaturesPage = createTab("Özellikler", "")
         for _, box in ipairs(Settings.FlingBoxes) do
             if box and box.Parent then pcall(setText, box, plr.Name) end
         end
-    end
-    -- Shared target fallback for MM2 and the general Fling panel.
-    Settings.GetSelectedTarget = function()
-        local plr = Settings.FlingPicked
-        return plr and plr.Parent and plr or nil
     end
 
     local function addSelector(page)
@@ -5994,7 +6060,7 @@ local FeaturesPage = createTab("Özellikler", "")
 end)()
 
 ---------------------------------------------------------
--- MURDER MYSTERY 2 SEKMESİ
+-- MURDER MYSTERY 2 SEKMESİ  (Troll sekmesinin üstünde)
 -- Kendi fonksiyonunun içinde çalışır: ana bölümdeki local sayısını artırmaz.
 ---------------------------------------------------------
 ;(function()
@@ -6150,11 +6216,18 @@ end)()
         pcall(function()
             if (not roleRemote or not roleRemote.Parent) and os.clock() - roleSearchStamp > 4 then
                 roleSearchStamp = os.clock()
-                for _, d in ipairs(RS:GetDescendants()) do
-                    if d.Name == "GetPlayerData" and d:IsA("RemoteFunction") then
-                        roleRemote = d
-                        break
+                -- Hızlı yol: motorun kendi aramasıyla bul. Tüm ReplicatedStorage'ı Lua ile taramak oyunu takıltıyordu.
+                local fastRole = RS:FindFirstChild("GetPlayerData", true)
+                if fastRole and fastRole:IsA("RemoteFunction") then
+                    roleRemote = fastRole
+                else
+                    for _, d in ipairs(RS:GetDescendants()) do
+                        if d.Name == "GetPlayerData" and d:IsA("RemoteFunction") then
+                            roleRemote = d
+                            break
+                        end
                     end
+                    if not roleRemote then roleSearchStamp = os.clock() + 20 end   -- bulunamadıysa ~24 sn boyunca tekrar tarama
                 end
             end
             local data
@@ -7074,17 +7147,22 @@ end)()
         -- Görsel iz için gerçek namlu ucunu bul; sunucuya giden origin'den bağımsız tut.
         local visualOrigin = origin
         pcall(function()
-            for _, d in ipairs(gun:GetDescendants()) do
-                local n = string.lower(d.Name)
-                if n == "muzzle" or n == "muzzleattachment" or n == "barrelattachment" then
-                    if d:IsA("Attachment") then
-                        visualOrigin = d.WorldPosition
-                        break
-                    elseif d:IsA("BasePart") then
-                        visualOrigin = d.Position
+            SFX.muzzleCache = SFX.muzzleCache or setmetatable({}, {__mode = "k"})
+            local mz = SFX.muzzleCache[gun]
+            if mz == nil then
+                mz = false
+                for _, d in ipairs(gun:GetDescendants()) do
+                    local n = string.lower(d.Name)
+                    if (n == "muzzle" or n == "muzzleattachment" or n == "barrelattachment")
+                        and (d:IsA("Attachment") or d:IsA("BasePart")) then
+                        mz = d
                         break
                     end
                 end
+                SFX.muzzleCache[gun] = mz
+            end
+            if mz and mz.Parent then
+                visualOrigin = mz:IsA("Attachment") and mz.WorldPosition or mz.Position
             end
             if visualOrigin == origin and handle and handle:IsA("BasePart") then
                 visualOrigin = (handle.CFrame * CFrame.new(0, 0, -handle.Size.Z * 0.5)).Position
@@ -7111,8 +7189,21 @@ end)()
             if SFX.burstFx then fxOk = false else SFX.burstFx = true end
         end
         if fxOk and Settings.PXShot then
-            -- Mermi izi daima silahın gerçek namlu ucundan hedefe doğru çizilir.
-            pcall(Settings.PXShot, visualOrigin, pos)
+            -- Mermi izi daima silahın gerçek namlu ucundan hedefe doğru çizilir, AMA bitiş noktası
+            -- hesaplanan "pos" değil: katilin O ANKİ GERÇEK kafa/gövde konumu. Böylece göze "yanından /
+            -- boşluktan geçti" gibi görünmez, doğrudan içinden/kafasından çıkmış gibi görünür.
+            -- (Sunucuya giden gerçek atış konumu "pos" budan etkilenmez, yalnızca bu görsel çizgi değişir.)
+            local visualEnd = pos
+            if SFX.shotRec and SFX.shotRec.part and SFX.shotRec.part.Parent then
+                local tch = SFX.shotRec.part.Parent
+                local thead = tch and tch:FindFirstChild("Head")
+                if thead and thead:IsA("BasePart") then
+                    visualEnd = thead.Position
+                elseif SFX.shotRec.part:IsA("BasePart") then
+                    visualEnd = SFX.shotRec.part.Position
+                end
+            end
+            pcall(Settings.PXShot, visualOrigin, visualEnd)
         end
         local errs = {}
         -- 1) Öğrenilmiş gerçek çağrı varsa onu kullan (silahla bir kez normal ateş edince kaydedilir)
@@ -7224,8 +7315,8 @@ end)()
     SFX.engineOn = true      -- yeni motor açık
     SFX.viewLag = 0.07       -- ekranda görünen konum ile sunucudaki konum arasındaki sabit pay (interpolasyon) (sn)
     SFX.sweepReach = 1.0     -- hat uzunluğu çarpanı: katilin öngörü süresinde alabileceği yol (yürüme hızı × süre × 0.8 × bu)
-    SFX.jumpBias = 1.2       -- hattı yukarı kaydırma payı (stud); zıplama ihtimalinde gövdenin üst kısmından geçsin
-    SFX.jumpReach = 5        -- dikey eksende hat yarı uzunluğu (stud)
+    SFX.jumpBias = 1.6       -- hattı yukarı kaydırma payı (stud); zıplama ihtimalinde gövdenin üst kısmından geçsin (eskiden 1.2)
+    SFX.jumpReach = 7        -- dikey eksende hat yarı uzunluğu (stud) (eskiden 5: zıplarken daha az ıskalasın diye artırıldı)
     local function recordPos(part)
         local h = SFX.hist[part]
         if not h then h = {} SFX.hist[part] = h end
@@ -7608,6 +7699,33 @@ end)()
         return fr.Unit:Dot(fo.Unit) < 0.3
     end
 
+    -- EN İYİ AN: hedef ani yön değiştiriyor / zıplamanın ortasında ise mermi tutmaz. Bu anda atmak yerine çok kısa süre
+    -- (en fazla ~0.3 sn) bekler; hareket oturunca (art arda 2 karede düzgün gidiş / duruş / iniş) hemen vurur.
+    -- Düz giden ya da duran hedefte HİÇ beklemez. Süre dolarsa yine de vurur (asla vazgeçmez).
+    SFX.bestMaxWait = 0.3
+    function SFX.momentBad(part, hum)
+        if SFX.isErratic(part) then return true end   -- sağ-sol kaçıyor
+        local okV, v = pcall(function() return part.AssemblyLinearVelocity end)
+        if okV and v and hum and hum.FloorMaterial == Enum.Material.Air and math.abs(v.Y) > 14 then return true end   -- zıplamanın ortası
+        return false
+    end
+    function SFX.waitBestMoment(part, hum, cancel)
+        if SFX.smartOn == false then return end
+        if not SFX.momentBad(part, hum) then return end
+        local t0 = os.clock()
+        local maxW = math.clamp((SFX.bestMaxWait or 0.3) + SFX.pingNow() * 0.3, 0.1, 0.5)
+        local good = 0
+        while os.clock() - t0 < maxW do
+            if cancel and cancel() then return end
+            if not (part.Parent and hum.Parent and hum.Health > 0) then return end
+            RunService.Heartbeat:Wait()
+            if SFX.momentBad(part, hum) then good = 0 else
+                good = good + 1
+                if good >= 2 then return end
+            end
+        end
+    end
+
     -- Otomatik kalibrasyon: atıştan (ping + pay) sonra hedefin GERÇEKTE nereye gittiği ölçülür;
     -- öngörü kısa/uzun kalmışsa çarpan yavaşça düzeltilir. Böylece script senin pingine ve oyunun gecikmesine kendini uyarlar.
     function SFX.calibrate(rec)
@@ -7712,6 +7830,12 @@ end)()
                 for _ = 1, (wallMode and 1 or 6) do
                     if not alive or my ~= shotToken then return end
                     if not (part.Parent and hum.Parent and hum.Health > 0) then return end -- hedef öldü
+                    -- En iyi an: kaçan / zıplayan hedefte kısa bekle (düz giden hedefte beklemez)
+                    if not onceOnly then
+                        SFX.waitBestMoment(part, hum, function() return not alive or my ~= shotToken end)
+                        if not alive or my ~= shotToken then return end
+                        if not (part.Parent and hum.Parent and hum.Health > 0) then return end
+                    end
                     local fired
                     -- Duvar Arkası modu: mermi direkt katilin gövdesinin içinden çıkar (SFX.insideShoot); duvar / mesafe önemsiz.
                     -- Havada asılı kalma / ışınlanma yok: karakter olduğu yerde durur.
@@ -7726,6 +7850,13 @@ end)()
                             lineO = nil
                             if forceWall or (wallOn and Settings.PremiumActive) then
                                 pos = aimPoint(part, hum)
+                            elseif SFX.directOn then
+                                -- DENEYSEL: hat / öngörü YOK. O ANKİ gerçek kafa/gövde konumu, remote gönderiminden
+                                -- hemen önce (gecikme en az olsun diye) okunur; çıkış noktası da aynı yere yakın.
+                                local tch = part.Parent
+                                local thead = tch and tch:FindFirstChild("Head")
+                                pos = (thead and thead:IsA("BasePart") and thead.Position) or part.Position
+                                lineO = pos
                             else
                                 -- Uzaktan vuruş: kaçılamaz hat (katil ileri-geri sekse / zıplasa da gövdesinden geçer)
                                 local o, a = SFX.sweepLine(part, hum)
@@ -8647,7 +8778,7 @@ end)()
 
     local function currentTarget()
         if mm2Target and mm2Target.Parent then return mm2Target end
-        -- MM2 sekmesinde seçim yoksa ortak seçili oyuncu kullanılır
+        -- MM2 sekmesinde seçim yoksa Troll sekmesindeki seçili oyuncu kullanılır
         local g = Settings.GetSelectedTarget and Settings.GetSelectedTarget()
         if g and g.Parent then return g end
         return nil
@@ -8906,7 +9037,7 @@ end)()
     -- Fling artık ortak modülde (Özellikler sekmesi ile paylaşılır)
     local flingTarget = Settings.FlingKit.fling
 
-    -- MM2 Fling eylemi ortak fırlatma motorunu kullanır
+    -- Troll sekmesindeki 14. özellik de aynı fırlatmayı kullanır (yalnızca MM2'de var)
     Settings.MM2FlingPlayer = function(plr)
         if Settings.SetFlingTarget then Settings.SetFlingTarget(plr) end
         flingTarget(plr)
@@ -9306,7 +9437,7 @@ end)()
                 --    Tüm beklemeler KARE bazlı: silah düştüğü karede bir sonraki adıma geçilir.
                 if not hasGun() and not gunDropInfo() then
                     local lobbied = false
-                    for round = 1, 4 do
+                    for round = 1, 1 do   -- TEK DENEME: aynı şerife ard arda tekrar fling atmaz (silah düşmezse aşağıda düşmesini bekler)
                         local sheriff = findRole("Sheriff", true)
                         if not sheriff then break end
                         notify("Şerif Avı", sheriff.DisplayName .. " fırlatılıyor...", 1.5)
@@ -10689,6 +10820,17 @@ end)()
     createToggle(MM2Page, RETRY_TOGGLE, SFX.retryOn, function(v)
         SFX.retryOn = v
     end)
+    -- DENEYSEL: Hat / öngörü YOK, sunucuya her atışta katilin O ANKİ gerçek kafa/gövde konumu
+    -- gönderilir (hiç pay eklenmez). Bazı oyunlarda sunucu hesaplı "hat" yerine ham/güncel konumu
+    -- daha kolay kabul edebilir; ikisini dene, hangisi tuttuysa onda kal.
+    local DIRECT_TOGGLE = "📍  Direkt Konum (Hesapsız • Hattı Kapat, Ham Konuma Ateş Et)"
+    SFX.directOn = savedOr(DIRECT_TOGGLE, false)
+    createToggle(MM2Page, DIRECT_TOGGLE, SFX.directOn, function(v)
+        SFX.directOn = v and true or false
+        if v then
+            notify("Direkt Konum", "Hat/öngörü kapalı: her atış katilin o anki tam konumuna gider. Deneysel — tutmazsa kapatıp eski moda dön.", 4)
+        end
+    end)
 
     -- "Duvar Arkası" modunun ayrı anahtarı / ayar satırı yok: mod seçiciden seçilince atış, olduğun yerden direkt
     -- katilin konumuna gönderilir (Oto Farm bitişindeki gibi). Havadan atış / ışınlanma yok.
@@ -11632,7 +11774,7 @@ end)()
     createSection(MM2Page, "☠️  KILL AURA")
     do
         local auraOn = false
-        local auraRange, auraDelay, auraMode, auraTp = 15, 0.3, 1, false
+        local auraRange, auraDelay, auraMode = 15, 0.3, 1
         local MODES = {"Herkes", "Sadece Polis / Kahraman", "Sadece Masumlar"}
         local lastAuraShot = 0
 
@@ -11693,12 +11835,11 @@ end)()
                     local th = best.Character and best.Character:FindFirstChild("HumanoidRootPart")
                     local me = myHRP()
                     if not th or not me then return end
-                    local origin
-                    if bestD > 9 and auraTp then
-                        origin = me.CFrame -- uzak hedef: yaklaş, vur, geri dön
-                        me.CFrame = CFrame.lookAt((th.CFrame * CFrame.new(0, 0, 2.2)).Position, th.Position)
-                        me.AssemblyLinearVelocity = Vector3.zero
-                    end
+                    -- v6.21 düzeltme: IŞINLANMA TAMAMEN KALDIRILDI. Karakter olduğu yerde kalır, hiçbir
+                    -- CFrame değişikliği yapılmaz (bu, "yere düşüp bir süre kalkamama" sorununun asıl
+                    -- kaynağıydı — ani ışınlanma oyunun fizik/anti-cheat'ini tetikleyip ragdoll yapıyordu).
+                    -- Artık bıçağın kendi "aura"sı var gibi davranır: menzile giren hedef, sen YERİNDE
+                    -- dururken vurulur. Menzili "📏 Aura Menzili" ayarından kendin belirlersin.
                     local stab = knife:FindFirstChild("Stab")
                     if stab then pcall(function() callRemote(stab, "Slash") end) end
                     pcall(function() knife:Activate() end)
@@ -11709,11 +11850,6 @@ end)()
                             firetouchinterest(th, handle, 1)
                         end
                     end)
-                    if origin then
-                        task.wait(0.12)
-                        local m2 = myHRP()
-                        if m2 then m2.CFrame = origin end
-                    end
                 end)
                 killBusy = false
                 unragdollMe()
@@ -11760,9 +11896,6 @@ end)()
             setText(valLbl, MODES[auraMode])
         end)
 
-        createToggle(MM2Page, "🌀  Uzak Hedefe Işınlanıp Vur  (Kapalıysa Yerinde Vurur)", false, function(v)
-            auraTp = v
-        end, false)
 
         task.spawn(function()
             while alive do
@@ -11928,9 +12061,11 @@ end)()
             if SFX.sel == 0 or not alive then return end
             local roots = {LocalPlayer.Character, LocalPlayer:FindFirstChildOfClass("Backpack"),
                 SoundService, LocalPlayer:FindFirstChildOfClass("PlayerGui")}
+            local tBudget = os.clock()
             for _, r in ipairs(roots) do
                 if r then
                     for _, d in ipairs(r:GetDescendants()) do
+                        if os.clock() - tBudget > 0.003 then task.wait() tBudget = os.clock() end   -- kare başına ≤ 3 ms
                         if d:IsA("Sound") and d.Playing and not d.Looped and d.TimePosition < 0.5
                             and d.Volume > 0 and not isOurs(d) and not SKIP_NAMES[d.Name] then
                             local inChar = LocalPlayer.Character and d:IsDescendantOf(LocalPlayer.Character)
@@ -12041,6 +12176,15 @@ end)()
             local clickConns = setmetatable({}, {__mode = "k"})
             while alive do
                 if SFX.sel ~= 0 then pcall(scanGun) end
+                if SFX.sel ~= 0 and SFX.preSel ~= SFX.sel then
+                    SFX.preSel = SFX.sel
+                    local gdef = GUN_SOUNDS[SFX.sel + 1]
+                    if gdef and gdef.id then
+                        task.spawn(function()
+                            pcall(function() game:GetService("ContentProvider"):PreloadAsync({"rbxassetid://" .. tostring(gdef.id)}) end)
+                        end)
+                    end
+                end
                 if not hookReady then
                     for _, g in ipairs(myGuns()) do
                         if not clickConns[g] then
@@ -12147,8 +12291,8 @@ end)()
         createButton(MM2Page, "⏹️  Önizleme Sesini Durdur", function()
             stopPreview()
         end)
-
     end)()
+
 
     createSection(MM2Page, "DÜŞEN SİLAH")
     local GUN_NOTIFY_TOGGLE = "🔔  Silah Düşünce Üstte Bildirim"
@@ -12443,6 +12587,8 @@ end)()
             end
         end, false)
         keyRow("Görünmezlik Tuşu", "MM2InvisKey")
+        keyRow("Fare Kilidi Çözme Tuşu  (fare takılırsa bas)", "MM2UnlockKey")
+        createToggle(MM2Page, "🖱️  Fare Kilidi Koruması (otomatik)", true, function() end)
 
         -- Yeniden doğunca (ölünce / yeni tur) görünmezlik devam etsin
         bind(LocalPlayer.CharacterAdded, function(ch)
@@ -13136,10 +13282,11 @@ end)()
         SFX.autoFlingOn, SFX.autoFlingGap = false, 1.5
         SFX.autoFlingToggle = createToggle(MM2Page, "🔁  Sürekli Fırlat (Seçili Oyuncu • aç / kapa)", false, function(v)
             SFX.autoFlingOn = v
+            SFX.autoFlingDone = nil   -- her açış/kapayışta "bu hedefe attım" kaydı sıfırlanır
             if v then
                 local okT, t = pcall(getFlingTarget)
                 if okT and t then
-                    notify("Sürekli Fırlat", t.Name .. " sürekli fırlatılacak. Kapatmak için anahtarı kapat.", 3)
+                    notify("Sürekli Fırlat", t.Name .. " tek sefer fırlatılacak (tekrar için anahtarı kapatıp aç).", 3)
                 else
                     notify("Sürekli Fırlat", "Önce yukarıdan bir oyuncu seç.", 3)
                 end
@@ -13170,12 +13317,13 @@ end)()
                             and hrp.AssemblyLinearVelocity.Magnitude < 250
                         if not onMap then away = true return end
                         if kit.isBusy() then lastEnd = os.clock() return end
-                        -- Haritaya yeni döndüyse HEMEN; değilse bekleme süresi dolunca
-                        if away or os.clock() - lastEnd >= SFX.autoFlingGap then
-                            away = false
-                            lastEnd = os.clock()
-                            kit.fling(t)
-                        end
+                        -- TEK DENEME: aynı hedefe bir kez atar, ard arda tekrar etmez
+                        -- (tekrar atmak için anahtarı kapatıp aç ya da başka oyuncu seç)
+                        if SFX.autoFlingDone == t then return end
+                        SFX.autoFlingDone = t
+                        away = false
+                        lastEnd = os.clock()
+                        kit.fling(t)
                     end)
                 end
             end
@@ -17269,11 +17417,154 @@ end)()
             if SFX.autoFlingToggle then SFX.autoFlingToggle.Set(not SFX.autoFlingOn) end
         elseif hotkeyMatches(input, Settings.MM2LaserKey, Settings.MM2LaserMouse) then
             if SFX.laserToggle then SFX.laserToggle() end
+        elseif hotkeyMatches(input, Settings.MM2UnlockKey, Settings.MM2UnlockMouse) then
+            if SFX.unlockMouse then SFX.unlockMouse(true) end
         end
     end)
 
     -- Orta tik algilama, sink ve fare kilidi degistirme kodu bilerek kaldirildi.
     -- Boylece MouseButton3 oyun/kamera tarafina dokunulmadan birakilir.
+
+    ---------------------------------------------------------
+    -- 🖱️ FARE KİLİDİ KORUMASI (takılan fare / kamera kilidi kurtarıcı)
+    -- Sorun: fare ekranın ortasında "basılı" kalır ve oynamaz. Hub fareyi kendisi kilitlemez; kilidi Roblox'un
+    -- kendi kamera scripti verir (birinci kişi, shift-lock ya da "sağ tık basılı" durumu) ve kamera / görünmezlik
+    -- (hayalet) / izleme gibi özellikler kamerayı değiştirince bu durum takılı kalabiliyor.
+    -- Bu blok:
+    --   • OTOMATİK: fare kilitli ama kilidin MEŞRU bir nedeni yoksa (sağ tık gerçekte basılı değil, shift-lock
+    --     kapalı, birinci kişide değilsin) kısa süre sonra kilidi çözer. Meşru kilitlere (shift-lock, birinci
+    --     kişi, gerçekten basılı sağ tık, Esc menüsü, sinematik kamera) dokunmaz.
+    --   • MANUEL: "Fare Kilidi Çözme Tuşu" (varsayılan N) — kamera sayfasındaki bayrakları sıfırlar, shift-lock'u
+    --     kapatır, birinci kişideysen kamerayı dışarı alır ve fareyi serbest bırakır.
+    --   • Oyun fareyi bilerek tekrar tekrar kilitliyorsa (8 sn içinde 4 düzeltme) 20 sn geri çekilir; oyunla kavga etmez.
+    ---------------------------------------------------------
+    ;(function()
+        local UIS = UserInputService
+        local MBH = Enum.MouseBehavior
+        local BTN2, BTN3 = Enum.UserInputType.MouseButton2, Enum.UserInputType.MouseButton3
+        local GUARD_LABEL = "🖱️  Fare Kilidi Koruması (otomatik)"
+        local cachedCams = nil
+
+        local function getCams()
+            if cachedCams then return cachedCams end
+            local ok, cams = pcall(function()
+                local ps = LocalPlayer:FindFirstChild("PlayerScripts")
+                local pm = ps and ps:FindFirstChild("PlayerModule")
+                if not pm then return nil end
+                return require(pm):GetCameras()
+            end)
+            if ok and type(cams) == "table" then cachedCams = cams end
+            return cachedCams
+        end
+
+        local function shiftLockOn(cams)
+            local ok, v = pcall(function()
+                local mlc = cams and cams.activeMouseLockController
+                if mlc and mlc.GetIsMouseLocked then return mlc:GetIsMouseLocked() end
+                return false
+            end)
+            return ok and v == true
+        end
+
+        local function firstPerson(cams)
+            local ok, v = pcall(function()
+                local c = cams and cams.activeCameraController
+                if c and c.inFirstPerson ~= nil then return c.inFirstPerson end
+                return nil
+            end)
+            if ok and v ~= nil then return v == true end
+            local cam = workspace.CurrentCamera
+            return cam ~= nil and (cam.CFrame.Position - cam.Focus.Position).Magnitude < 1.5
+        end
+
+        -- Fare kilitli VE bunun meşru bir nedeni yok mu?
+        local function isStuck()
+            local mb = UIS.MouseBehavior
+            if mb == MBH.Default then return false end
+            if GuiService.MenuIsOpen then return false end
+            local cam = workspace.CurrentCamera
+            if cam and cam.CameraType == Enum.CameraType.Scriptable then return false end
+            if mb == MBH.LockCurrentPosition then
+                -- sağ / orta tık gerçekten basılıysa kilit normaldir (kamerayı çevirme)
+                if UIS:IsMouseButtonPressed(BTN2) or UIS:IsMouseButtonPressed(BTN3) then return false end
+                return true
+            end
+            local cams = getCams()
+            if shiftLockOn(cams) or firstPerson(cams) then return false end
+            return true
+        end
+
+        local function release(manual)
+            local cams = getCams()
+            -- takılı kalmış "sağ / orta tık basılı" bayrakları
+            pcall(function()
+                local c = cams and cams.activeCameraController
+                if c then
+                    c.isRightMouseDown = false
+                    c.isMiddleMouseDown = false
+                end
+            end)
+            if manual then
+                -- shift-lock açıksa kapat
+                pcall(function()
+                    local mlc = cams and cams.activeMouseLockController
+                    if mlc and mlc.GetIsMouseLocked and mlc:GetIsMouseLocked() and mlc.OnMouseLockToggled then
+                        mlc:OnMouseLockToggled()
+                    end
+                end)
+                -- birinci kişideysen kamerayı dışarı al
+                pcall(function()
+                    local c = cams and cams.activeCameraController
+                    if c and c.inFirstPerson and c.SetCameraToSubjectDistance then
+                        if LocalPlayer.CameraMode == Enum.CameraMode.LockFirstPerson then
+                            LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                        end
+                        c:SetCameraToSubjectDistance(10)
+                    end
+                end)
+            end
+            pcall(function() UIS.MouseBehavior = MBH.Default end)
+            if manual then notify("Fare Kilidi", "Fare kilidi çözüldü.", 2) end
+        end
+        SFX.unlockMouse = release
+
+        local stuckT, acc, pauseUntil, fixes = 0, 0, 0, {}
+        bind(RunService.Heartbeat, function(dt)
+            if not alive then return end
+            acc = acc + dt
+            -- Görünmezlik açılıp kapanırken (SFX.mouseBoost) daha sık kontrol et
+            local boosting = os.clock() < (SFX.mouseBoost or 0)
+            if acc < (boosting and 0.06 or 0.2) then return end
+            local elapsed = acc
+            acc = 0
+            if Settings.ToggleStates[GUARD_LABEL] == false then stuckT = 0 return end
+            if UIS.TouchEnabled and not UIS.MouseEnabled then return end
+            if UIS:GetFocusedTextBox() then stuckT = 0 return end
+            local now = os.clock()
+            if now < pauseUntil then stuckT = 0 return end
+            local okS, stuck = pcall(isStuck)
+            if okS and stuck then
+                stuckT = stuckT + elapsed
+                if stuckT >= (boosting and 0.25 or 0.6) then
+                    stuckT = 0
+                    local recent = {}
+                    for _, t in ipairs(fixes) do
+                        if now - t < 8 then recent[#recent + 1] = t end
+                    end
+                    fixes = recent
+                    if #fixes >= 4 then
+                        pauseUntil = now + 20   -- oyun fareyi bilerek kilitliyor: karışma
+                        fixes = {}
+                        return
+                    end
+                    fixes[#fixes + 1] = now
+                    release(false)
+                end
+            else
+                stuckT = 0
+            end
+        end)
+    end)()
 
     -- SOL TIK İLE KESKİN VURUŞ: silah elindeyken fareye sol tıklayınca katile otomatik ateş.
     -- gpe (menüye / arayüze tıklama) sayılmaz; silah elde değilse sessizce yok sayılır.
@@ -17367,7 +17658,7 @@ local PremiumPage, PremiumTab = createTab("Premium", "")
     if not setfpscap then return end
     task.spawn(function()
         while alive do
-            local cap = 144
+            local cap = 9999
             pcall(function()
                 local fx = Settings.FPSX
                 if fx and fx.level and fx.level >= 3 and tonumber(fx.cap) then cap = fx.cap end
@@ -18423,6 +18714,7 @@ do
     local steppedCon, heartbeatCon, neutralCon = nil, nil, nil
     local lastPos = nil
     local lastWarn = 0
+    local lastPostScan = 0                                -- ikinci taramayi 0.12 sn aralikla sinirla
     local detected = {}                                  -- bildirim tekrarini engeller
     local changed = setmetatable({}, {__mode = "k"})     -- degistirdigimiz parcalarin eski degerleri
 
@@ -18514,7 +18806,17 @@ do
             detected = {}
             -- Stepped = fizikten ONCE, Heartbeat = fizikten SONRA: ikisinde de calisir
             if not steppedCon then steppedCon = RunService.Stepped:Connect(neutralizeFlingers) end
-            if not heartbeatCon then heartbeatCon = RunService.Heartbeat:Connect(neutralizeFlingers) end
+            -- Fizik sonrasi kontrolu koru, fakat her karede tum oyunculari/uzuvlari
+            -- ikinci kez tarama: 0.12 sn'de bir calistir (yaklasik 8 kez/sn).
+            if not heartbeatCon then
+                heartbeatCon = RunService.Heartbeat:Connect(function()
+                    local now = os.clock()
+                    if now - lastPostScan >= 0.12 then
+                        lastPostScan = now
+                        neutralizeFlingers()
+                    end
+                end)
+            end
             if not neutralCon then neutralCon = RunService.Heartbeat:Connect(neutralizeSelf) end
         else
             drop(steppedCon); steppedCon = nil
@@ -18654,51 +18956,9 @@ bind(UserInputService.JumpRequest, function()
     end
 end)
 
--- Dokunduğun / sana değen oyuncuyu hafifçe ileri iter
-do
-    local pushOn, pushPower = false, 3
-    local lastPush = {}
-    bind(RunService.Heartbeat, function()
-        if not pushOn then return end
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        local look = hrp.CFrame.LookVector
-        local flat = Vector3.new(look.X, 0, look.Z)
-        if flat.Magnitude < 0.01 then return end
-        flat = flat.Unit
-        local now = os.clock()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            local oc = plr ~= LocalPlayer and plr.Character
-            local oh = oc and oc:FindFirstChild("HumanoidRootPart")
-            if oh then
-                local d = oh.Position - hrp.Position
-                local dist = Vector3.new(d.X, 0, d.Z).Magnitude
-                if dist <= 4.5 and math.abs(d.Y) <= 5 and (lastPush[plr] or 0) + 0.35 < now then
-                    lastPush[plr] = now
-                    pcall(function()
-                        local v = oh.AssemblyLinearVelocity
-                        oh.AssemblyLinearVelocity = Vector3.new(flat.X * pushPower * 8, v.Y, flat.Z * pushPower * 8)
-                    end)
-                end
-            end
-        end
-    end)
-
-    createToggle(FeaturesPage, "🫸  Dokunduğun Kişiyi İleri İt", false, function(v)
-        pushOn = v
-        if not v then lastPush = {} end
-        notify("İtme Modu", v and "Aktif! Sana değen oyuncu ileri itilir." or "Kapatıldı.", 2)
-    end)
-
-    createSlider(FeaturesPage, "💪  İtme Gücü", 1, 10, 3, function(v)
-        pushPower = v
-    end, "")
-end
-
 -- 👥 OYUNCULARIN İÇİNDEN GEÇ: diğer oyuncuların karakterlerinin çarpışmasını SADECE senin istemcinde kapatır.
 -- Sana değip seni itemezler / engel olamazlar; sen de onların içinden geçersin. Başkaları seni etkilenmiş görmez.
-createSection(FeaturesPage, "OYUNCU ÇARPIŞMASI")
+-- (menüde gösterilmez: script açılınca otomatik devreye girer)
 ;(function()
     local on = false
     local conn = nil
@@ -18757,10 +19017,8 @@ createSection(FeaturesPage, "OYUNCU ÇARPIŞMASI")
         end
     end
 
-    createToggle(FeaturesPage, "👥  Oyuncuların İçinden Geç  (İtilme Engeli)", false, function(v)
-        setOn(v)
-        notify("Oyuncu Çarpışması", v and "Aktif! Artık kimse seni itemez, oyuncuların içinden geçersin." or "Kapatıldı. Çarpışma normale döndü.", 3)
-    end)
+    -- Menüde anahtar YOK: script açılır açılmaz kendiliğinden aktif (kimse seni itemez, oyuncuların içinden geçersin)
+    setOn(true)
 
     task.spawn(function()
         while alive do task.wait(1) end
@@ -18989,7 +19247,7 @@ end
 -- Kademe 3 diğer ikisinin hepsini zaten içerir; ayrıca açmaya gerek yoktur.
 -- Yeni yüklenen her nesneye (harita değişimi dahil) anında uygulanır; kapatınca her şey eski haline döner.
 do
-    local FPSX = {flags = {fps = false, ultra = false, pro = false}, level = 0, cap = 144}
+    local FPSX = {flags = {fps = false, ultra = false, pro = false}, level = 0, cap = 360}
     Settings.FPSX = FPSX
     local saved = setmetatable({}, {__mode = "k"})       -- [nesne] = {özellik = eskiDeğer}
     local hooked = setmetatable({}, {__mode = "k"})
@@ -19385,14 +19643,14 @@ do
         end
     end
 
-    -- Zaman bütçeli tarama: kare başına en fazla ~2 ms; büyük harita taraması daha az takılma yaratır.
+    -- Zaman bütçeli tarama: kare başına ~6 ms → büyük haritada bile takılmadan ve hızlı biter
     local function sweep(my, lvl)
         local list = workspace:GetDescendants()
         local t0 = os.clock()
         for i = 1, #list do
             if my ~= token or not alive then return end
             pcall(apply, list[i], lvl)
-            if os.clock() - t0 > 0.002 then task.wait() t0 = os.clock() end
+            if os.clock() - t0 > 0.006 then task.wait() t0 = os.clock() end
         end
     end
 
@@ -19404,10 +19662,10 @@ do
                 pcall(function() o[prop] = v end)
             end
             saved[o] = nil
-            if os.clock() - t0 > 0.002 then task.wait() t0 = os.clock() end
+            if os.clock() - t0 > 0.006 then task.wait() t0 = os.clock() end
         end
-        -- FPS modları kapanınca varsayılan 144 FPS sınırına dön.
-        if setfpscap and FPSX.level < 3 then pcall(setfpscap, 144) end
+        -- FPS modları kapanırken 60 FPS sınırı dayatma; destekleniyorsa sınırı serbest bırak.
+        if setfpscap and FPSX.level < 3 then pcall(setfpscap, 9999) end
         if FPSX.level == 0 then
             local existing = Lighting:FindFirstChild("EZRAGOX_Darken")
             if existing then pcall(function() existing:Destroy() end) end
@@ -19419,7 +19677,7 @@ do
     end
 
     function FPSX.setCap(v)
-        FPSX.cap = math.clamp(math.floor(tonumber(v) or 144), 60, 240)
+        FPSX.cap = math.floor(v)
         if FPSX.level >= 3 and setfpscap then pcall(setfpscap, FPSX.cap) end
     end
 
@@ -20352,16 +20610,19 @@ do
 
     -- Zoom kilidi
     do
-        local origMax, origMin = LocalPlayer.CameraMaxZoomDistance, LocalPlayer.CameraMinZoomDistance
+        -- FARE-KİLİDİ DÜZELTMESİ: Eskiden burada CameraMinZoomDistance = 0.5 yapılıyordu. Bu, oyunun koyduğu
+        -- "yakın zoom" sınırını da silip kamerayı BİRİNCİ KİŞİYE sokabiliyordu; birinci kişide Roblox fareyi
+        -- ekranın tam ortasına kilitler (imleç "basılı kalmış" gibi görünür). Artık yalnızca UZAKLAŞMA
+        -- (max zoom) sınırı kaldırılıyor, yakın sınıra hiç dokunulmuyor.
+        local origMax = LocalPlayer.CameraMaxZoomDistance
         PX.toggle("🔍  Kamera Zoom Sınırını Kaldır", function(v)
             pcall(function()
                 if v then
+                    origMax = LocalPlayer.CameraMaxZoomDistance
                     LocalPlayer.CameraMaxZoomDistance = 1000
-                    LocalPlayer.CameraMinZoomDistance = 0.5
                     notify("Zoom", "Uzaklaşma sınırı kaldırıldı.", 2)
                 else
                     LocalPlayer.CameraMaxZoomDistance = origMax
-                    LocalPlayer.CameraMinZoomDistance = origMin
                 end
             end)
         end)
@@ -20407,8 +20668,12 @@ do
         end
     end)
 
-    -- Executor destekliyorsa FPS sınırını ayarlar; 144 varsayılanı yükü ve kare süresi dalgalanmasını dengeler.
-    PX.slider("🎯  FPS Sınırı  (executor destekliyorsa)", 60, 240, 144, function(v)
+    -- Executor destekliyorsa FPS sınırını yükseltir (setfpscap)
+    do
+        local sv = Settings.SliderValues["🎯  FPS Sınırı  (executor destekliyorsa)"]
+        if type(sv) == "number" then Settings.FPSX.cap = 360 end -- Eski kayıtlı 60/144 değeri otomatik olarak maksimuma çekilir.
+    end
+    PX.slider("🎯  FPS Sınırı  (executor destekliyorsa)", 60, 360, 360, function(v)
         Settings.FPSX.setCap(v)
     end, " fps")
 
@@ -21190,7 +21455,8 @@ end)()
             if r6 and r6.Transparency ~= 1 then setProp("kor", r6, "Transparency", 1) end
         end
 
-        -- Tek bağlantı: her karede uygular, yeniden doğma / oyunun sıfırlaması fark etmez
+        -- Hafif güncelleme: görünürlük özelliklerini her render karesinde değil,
+        -- saniyede yaklaşık 8 kez uygula. Açıkken yine oyun sıfırlamalarını yakalar.
         local function refresh()
             if visConn then
                 visConn:Disconnect()
@@ -21198,7 +21464,11 @@ end)()
             end
             if not (headOn or korOn) then return end
             headFail, headErrShown = 0, false
-            visConn = RunService.RenderStepped:Connect(function()
+            local visAccumulator = 0
+            visConn = RunService.Heartbeat:Connect(function(dt)
+                visAccumulator = visAccumulator + dt
+                if visAccumulator < 0.12 then return end
+                visAccumulator = 0
                 local char = LocalPlayer.Character
                 if not char then return end
                 if korOn then pcall(hideLeg, char) end
@@ -21803,7 +22073,7 @@ end)()
 
     ---------------------------------------------------------
     -- 👗 GÖRÜNÜM: en öndeki ana başlık; altında Aura, Headless & Korblox,
-    -- Kıyafet (giysi kopyalama), Animasyon ve Sahte Rütbe kendi başlıklarıyla sıralanır
+    -- ve Animasyon kendi başlıklarıyla sıralanır
     ---------------------------------------------------------
     do
         local mh = createSection(PremiumPage, "👗  GÖRÜNÜM")
@@ -21844,7 +22114,7 @@ end)()
         local byHead = {}
         for _, s in ipairs(segs) do byHead[s.head] = s end
         local placed, final = {}, {}
-        for _, key in ipairs({"lock", "status", "main", "aura", "headless", "outfit", "anim", "emote", "tag"}) do
+        for _, key in ipairs({"lock", "status", "main", "aura", "headless", "anim", "emote"}) do
             local h = PX.secHolders[key]
             local s = h and byHead[h]
             if s and not placed[s] then
@@ -22022,8 +22292,14 @@ end)
 ---------------------------------------------------------
 ;(function()
     local LOGO_ID = "rbxassetid://132651627732258"
-    -- Ayar: LOGO_GAP = kafanın tepesinden boşluk (stud) • LOGO_SIZE = logonun SABİT boyu (piksel, mesafeden etkilenmez)
-    local LOGO_GAP, LOGO_SIZE = 0.45, 80
+    -- Ayar (v6.21 düzeltme): logo artık SADECE Head'e bağlanır — gövdeye / HumanoidRootPart'a asla
+    -- düşmez; Head henüz yoksa (karakter yeni doğdu) logo o karede gizlenir, Head oluşunca tekrar belirir.
+    -- Hem boşluk hem boy artık tamamen EKRAN PİKSELİ cinsinden: öncesinde boşluk 3B stud olarak
+    -- hesaplanıp SONRA ekrana izdüşürülüyordu, bu yüzden mesafeye göre (perspektif) ekrandaki boşluk
+    -- ve görünen boy değişiyordu. Şimdi önce kafanın TEPESİ ekrana izdüşürülür, ardından sabit piksel
+    -- kadar yukarı kaydırılır: mesafe ne olursa olsun (yaklaş / uzaklaş) boşluk da boy da birebir
+    -- aynı pikselde kalır, büyüyüp küçülmez.
+    local LOGO_GAP_PX, LOGO_SIZE = 10, 72   -- LOGO_GAP_PX: kafanın tepesinden piksel boşluk • LOGO_SIZE: sabit piksel boy
     local on = true   -- HER ZAMAN AÇIK: kullanıcılar kapatamaz (arayüzde anahtarı yok)
     local dirty, lastInfo = true, nil
     local jobId = (game.JobId ~= "" and game.JobId) or "studio"
@@ -22077,27 +22353,29 @@ end)
                 local k = keys[p]
                 if not k then k = keyOf(p.UserId) keys[p] = k end
                 local char = p.Character
-                local head = char and (char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart"))
-                if users[k] and head then
+                local head = char and char:FindFirstChild("Head")   -- SADECE Head: gövdeye/HumanoidRootPart'a asla düşmez
+                if users[k] and head and head:IsA("BasePart") then
                     local m = marks[p]
                     if not (m and m.Parent) then
                         m = Instance.new("ImageLabel")
                         m.Name = "EZRAGOX_UserLogo"
                         m.BackgroundTransparency = 1
                         m.AnchorPoint = Vector2.new(0.5, 1)
-                        m.Size = UDim2.fromOffset(44, 44)
+                        m.Size = UDim2.fromOffset(LOGO_SIZE, LOGO_SIZE)   -- sabit boy: bir daha hiç değişmez
                         m.Image = LOGO_ID
                         m.ScaleType = Enum.ScaleType.Fit
                         m.Visible = false
                         m.Parent = ensureLayer()
                         marks[p] = m
                     end
-                    local pnt, vis = cam:WorldToViewportPoint(head.Position + Vector3.new(0, head.Size.Y * 0.5 + LOGO_GAP, 0))
+                    -- Önce kafanın gerçek tepesini (head.Size'a göre) 3B'den ekrana izdüşür, SONRA
+                    -- sabit piksel kadar yukarı kaydır: boşluk ve boy artık mesafeden (pnt.Z) tamamen bağımsız.
+                    local topWorld = head.Position + Vector3.new(0, head.Size.Y * 0.5, 0)
+                    local pnt, vis = cam:WorldToViewportPoint(topWorld)
                     local show = vis and pnt.Z > 0   -- uzaklık sınırı yok: logo hep kafanın üstünde kalır
                     m.Visible = show
                     if show then
-                        m.Size = UDim2.fromOffset(LOGO_SIZE, LOGO_SIZE)   -- sabit boy
-                        m.Position = UDim2.fromOffset(pnt.X, pnt.Y)
+                        m.Position = UDim2.fromOffset(pnt.X, pnt.Y - LOGO_GAP_PX)
                     end
                 elseif marks[p] then
                     dropMark(p)
@@ -22844,9 +23122,10 @@ bind(RunService.RenderStepped, function(rawDt)
         fpsAcc, fpsN = 0, 0
     end
 
-    -- Performans: arayüz animasyonları menü açıkken ~24 Hz, kapalıyken ~10 Hz güncellenir.
+    -- Performans: menü kapalıyken animasyonlar ~12 Hz'e iner; menü açıkken (çok yüksek FPS dışında)
+    -- her karede çalışır, görünüm aynı kalır.
     animAcc = animAcc + rawDt
-    local interval = menuOpen and (1 / 24) or (1 / 10)
+    local interval = menuOpen and (1 / 30) or (1 / 12)
     if animAcc < interval then return end
     local dt = animAcc
     animAcc = 0
