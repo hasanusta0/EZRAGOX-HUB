@@ -357,7 +357,8 @@ local EN_TEXT = {
     ["📏  Kaçış Mesafesi"] = "📏 Escape Distance",
     ["🔊  Şimşek Sesi (0 = Sessiz)"] = "🔊 Lightning Sound (0 = Silent)",
     ["🔥  Ateş Patlaması (Katil Vurulunca)"] = "🔥 Fire Burst (When Killer Is Hit)",
-    ["🔪  Seçili Oyuncuyu Öldür"] = "🔪 Kill Selected Player",
+    ["🔪  Seçili Oyuncuyu Öldür"] = "🔪 Kill Selected Player(s)",
+    ["🧹  Seçili Oyuncuları Temizle"] = "🧹 Clear Selected Players",
     ["🔫  Keskin Vuruş (Katil) — Şimdi"] = "🔫 Sharp Shot (Killer) — Now",
     ["🔪  Bıçak Atma  (Tuşla En Yakındakine Hızlıca At)"] = "🔪 Knife Throw  (Hotkey, Nearest Player, Fast)",
     ["🔪  En Yakındakine Bıçak At — Şimdi"] = "🔪 Throw Knife at Nearest — Now",
@@ -371,6 +372,11 @@ local EN_TEXT = {
     ["👻  Görünmezlik (Herkesten Gizlen)"] = "👻 Invisibility (Hide From Everyone)",
     ["Görünmezlik Tuşu"] = "Invisibility Key",
     ["💀  Otomatik Herkesi Öldür  (Katilken Sürekli • aç / kapa)"] = "💀  Auto Kill Everyone  (Continuously While Murderer • on / off)",
+    ["🛡️  Katil Koruması (Tur başı: silahı alanı / ✔ seçilileri fırlat)"] = "🛡️  Murderer Shield (Round start: fling gun holder / ✔ selected players)",
+    ["🔫  Seçili Oyuncuyu Otomatik Vur (Şerif / Kahramanken • aç / kapa)"] = "🔫  Auto Shoot Selected Player (While Sheriff / Hero • on / off)",
+    ["⚡  Seri Atış Aralığı (ms)  •  düşük = daha hızlı tarar"] = "⚡  Spray Interval (ms)  •  lower = faster",
+    ["☠️  Seçili Oyuncu Katil Değilse de Vur (masumu vurursan sen ölürsün)"] = "☠️  Also Shoot Selected Player If Not Murderer (you die if you hit an innocent)",
+    ["🔪  Seçili Oyuncuyu Otomatik Kes (Katilken • aç / kapa)"] = "🔪  Auto Knife Selected Player (While Murderer • on / off)",
     ["Aktif! Katil olduğunda herkes otomatik ve sürekli kesilir."] = "Active! Everyone is stabbed automatically and continuously while you are the murderer.",
     ["🛡️  God Mode  (2 Can — 2. Vuruşta / Kesişte Ölürsün)"] = "🛡️  God Mode  (2 Lives — Die On The 2nd Hit / Stab)",
     ["Saldırı boşa gitti, bir can gitti! Bir daha saldırılırsan ölürsün."] = "The attack missed you, one life gone! Attacked again and you die.",
@@ -8273,7 +8279,7 @@ end)()
 
     SFX.airOn = true
     SFX.airOffset = 1.6   -- mermi çıkış noktasının katilden uzaklığı (stud); 0 olmasın (yön sıfırlanır)
-    function SFX.airShoot(part, hum)
+    function SFX.airShoot(part, hum, fast)
         if not (part and part.Parent and hum) then return nil end
         local gun, ch = findGun(), LocalPlayer.Character
         if not (gun and ch) then return nil end
@@ -8285,7 +8291,7 @@ end)()
             while gun.Parent ~= ch and os.clock() - t1 < 0.25 do task.wait() end
         end
         if gun.Parent ~= ch then return nil end
-        task.wait(SFX.snipeFirst and (0.25 + getPingSeconds() * 0.5) or 0.08)
+        if not fast then task.wait(SFX.snipeFirst and (0.25 + getPingSeconds() * 0.5) or 0.08) end
         local lineO
         local okS, res = pcall(fireGunAt, function()
             -- Kaçılamaz hat: katil ileri-geri sekse / zıplasa da mermi gövdesinden geçer (SFX.sweepLine)
@@ -8774,6 +8780,7 @@ end)()
     -- OYUNCU ÖLDÜRME (katil: bıçak • polis/kahraman: silah)
     ---------------------------------------------------------
     local mm2Target = nil
+    SFX.mm2Selected = {}   -- çoklu seçim: [Player] = true
     local killBusy = false
 
     local function currentTarget()
@@ -8783,6 +8790,20 @@ end)()
         if g and g.Parent then return g end
         return nil
     end
+
+    -- Seçili oyuncular (çoklu). Hiç seçim yoksa eskisi gibi tek hedefe (Troll sekmesi dahil) düşer.
+    function SFX.getTargets()
+        local out = {}
+        for _, pl in ipairs(Players:GetPlayers()) do
+            if pl ~= LocalPlayer and SFX.mm2Selected[pl] then out[#out + 1] = pl end
+        end
+        if #out == 0 then
+            local t = currentTarget()
+            if t and t ~= LocalPlayer then out[1] = t end
+        end
+        return out
+    end
+    bind(Players.PlayerRemoving, function(pl) SFX.mm2Selected[pl] = nil end)
 
     local function findKnife()
         local ch = LocalPlayer.Character
@@ -8852,6 +8873,48 @@ end)()
                     local th = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
                     if th then
                         fireGunAt(th.Position + th.AssemblyLinearVelocity * getPingSeconds())
+                    end
+                end
+            end)
+            killBusy = false
+        end)
+    end
+
+    -- Birden fazla oyuncuyu tek seferde, en yakından başlayarak hızlıca keser; işi bitince eski yerine döner
+    function SFX.killMany(plrs)
+        if killBusy then return end
+        local hrp, hum = myHRP(), myHum()
+        if not hrp or not hum or hum.Health <= 0 then return end
+        local list = {}
+        for _, p in ipairs(plrs or {}) do
+            if p ~= LocalPlayer and targetAlive(p) then list[#list + 1] = p end
+        end
+        if #list == 0 then return end
+        local function dist(p)
+            local th = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+            return th and (th.Position - hrp.Position).Magnitude or math.huge
+        end
+        table.sort(list, function(a, b) return dist(a) < dist(b) end)
+        killBusy = true
+        task.spawn(function()
+            pcall(function()
+                local origin = hrp.CFrame
+                local knife = findKnife()
+                if knife and equipTool(knife) then
+                    for _, p in ipairs(list) do
+                        local h = myHum()
+                        if not alive or not h or h.Health <= 0 then break end
+                        if targetAlive(p) then stabPlayer(p, knife) end
+                    end
+                    local h2 = myHRP()
+                    if h2 then h2.CFrame = origin end
+                elseif findGun() then
+                    for _, p in ipairs(list) do
+                        local th = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                        if th and targetAlive(p) then
+                            fireGunAt(th.Position + th.AssemblyLinearVelocity * getPingSeconds())
+                            task.wait(0.2)
+                        end
                     end
                 end
             end)
@@ -8999,7 +9062,7 @@ end)()
     task.spawn(function()
         while alive do
             task.wait(0.08)
-            if SFX.autoHeroOn and not killBusy and os.clock() - SFX.lastAutoStab > 0.5 then
+            if (SFX.autoHeroOn or os.clock() < (SFX.shieldHuntUntil or 0)) and not killBusy and os.clock() - SFX.lastAutoStab > 0.5 then
                 pcall(function()
                     if not findKnife() then return end        -- yalnızca katilken (bıçak varken)
                     local me = myHRP()
@@ -9031,6 +9094,87 @@ end)()
                     end
                 end)
             end
+        end
+    end)
+
+    ---------------------------------------------------------
+    -- KATİL KORUMASI (ilk ~10 sn: bıçak henüz verilmemişken)
+    -- Hileciler bu sürede şerifi fırlatıp silahı "düşmüş gibi" alıp katili vuruyor; mermiler duvardan da
+    -- geçtiği için saklanmak işe yaramıyor, bıçak da henüz yok. Tek çare hileciyi atış yapmadan etkisiz bırakmak:
+    --   • Tur başında (haritaya girince) ve bıçak verilene kadar: seçili (✔) oyuncular ve ELİNDE SİLAH OLAN herkes
+    --     (ilk 10 sn'de kimseye silah verilmediği için bu kişi hilecidir) sırayla boşluğa fırlatılır.
+    --   • Bıçak verilince silahı alanı otomatik kesme 8 sn boyunca açılır.
+    ---------------------------------------------------------
+    SFX.shieldOn, SFX.shieldHuntUntil = false, 0
+    SFX.shieldWindowStart, SFX.shieldPrevLobby, SFX.shieldKnifeSeen = nil, true, false
+    SFX.shieldWindow, SFX.shieldRepeat = 25, 4   -- tur başından sonra koruma süresi / aynı kişiyi tekrar fırlatma aralığı (sn)
+
+    function SFX.shieldHasGun(p)
+        local ch = p.Character
+        if ch and ch:FindFirstChild("Gun") then return true end
+        local bp = p:FindFirstChildOfClass("Backpack")
+        return bp ~= nil and bp:FindFirstChild("Gun") ~= nil
+    end
+
+    task.spawn(function()
+        local flung = setmetatable({}, {__mode = "k"})
+        local function ready(p)
+            return p ~= LocalPlayer and p.Parent and targetAlive(p) and os.clock() - (flung[p] or -99) > SFX.shieldRepeat
+        end
+        local function pick()
+            -- 1) elinde silah olan (ilk 10 sn'de silah kimseye verilmez → hileci)
+            local best, bestD
+            local me = myHRP()
+            for _, p in ipairs(Players:GetPlayers()) do
+                if ready(p) and SFX.shieldHasGun(p) then
+                    local th = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+                    local d = (th and me) and (th.Position - me.Position).Magnitude or 1e9
+                    if not bestD or d < bestD then best, bestD = p, d end
+                end
+            end
+            if best then return best end
+            -- 2) önceden seçilmiş (✔) şüpheliler
+            for _, p in ipairs(Players:GetPlayers()) do
+                if SFX.mm2Selected[p] and ready(p) then return p end
+            end
+            return nil
+        end
+        while alive do
+            task.wait(0.1)
+            pcall(function()
+                local hum = myHum()
+                if not SFX.shieldOn or not hum or hum.Health <= 0 then SFX.shieldPrevLobby = true return end
+                -- Tur başı tespiti: lobiden haritaya geçiş = yeni tur
+                local lobby = SFX.inLobby()
+                if not lobby and SFX.shieldPrevLobby then
+                    SFX.shieldWindowStart = os.clock()
+                    SFX.shieldKnifeSeen = false
+                    flung = setmetatable({}, {__mode = "k"})
+                end
+                if lobby then SFX.shieldWindowStart = nil end
+                SFX.shieldPrevLobby = lobby
+                if lobby or not SFX.shieldWindowStart then return end
+                if os.clock() - SFX.shieldWindowStart > (SFX.shieldWindow or 25) then return end
+                if findKnife() then
+                    -- Bıçak verildi: ön dönem bitti; silahı alan kim varsa hemen kes
+                    if not SFX.shieldKnifeSeen then
+                        SFX.shieldKnifeSeen = true
+                        SFX.shieldHuntUntil = os.clock() + 8
+                    end
+                    return
+                end
+                if SFX.shieldKnifeSeen then return end
+                local role = myRole()
+                if role ~= "Murderer" then return end
+                local kit = Settings.FlingKit
+                if not kit or (kit.isBusy and kit.isBusy()) then return end
+                local t = pick()
+                if t then
+                    flung[t] = os.clock()
+                    pcall(notifyTop, "🛡️ Katil Koruması: " .. t.DisplayName .. " fırlatılıyor.", 2)
+                    pcall(kit.fling, t)
+                end
+            end)
         end
     end)
 
@@ -11653,6 +11797,13 @@ end)()
     new("UIPadding", {PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, selList)
 
     local selSuppress = false
+    function SFX.updateSelCount()
+        local n = 0
+        for pl in pairs(SFX.mm2Selected) do
+            if pl.Parent then n = n + 1 else SFX.mm2Selected[pl] = nil end
+        end
+        selBox.PlaceholderText = n > 0 and ("✔ " .. n .. " oyuncu seçili • isim yaz") or "İsim yaz (örn: hasan)"
+    end
     Settings.PlayerPreviewBind(selList)
     local function hideSelList()
         selList.Visible = false
@@ -11675,6 +11826,11 @@ end)()
                         BackgroundTransparency = 0.2, AutoButtonColor = false, Text = "", ZIndex = 21,
                     }, selList)
                     corner(b, 8)
+                    local tick = new("TextLabel", {
+                        AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -8, 0.5, 0), Size = UDim2.new(0, 24, 0, 24),
+                        BackgroundTransparency = 1, Text = "✔", TextColor3 = Color3.fromRGB(70, 230, 110),
+                        TextSize = 20, Font = Enum.Font.GothamBold, Visible = SFX.mm2Selected[plr] == true, ZIndex = 23,
+                    }, b)
                     b.MouseEnter:Connect(function()
                         tween(b, 0.12, {BackgroundTransparency = 0})
                         Settings.PlayerPreview(plr)
@@ -11689,17 +11845,16 @@ end)()
                     }, b)
                     pill(av)
                     new("TextLabel", {
-                        Position = UDim2.new(0, 42, 0, 0), Size = UDim2.new(1, -45, 1, 0), BackgroundTransparency = 1,
+                        Position = UDim2.new(0, 42, 0, 0), Size = UDim2.new(1, -75, 1, 0), BackgroundTransparency = 1,
                         Text = plr.DisplayName .. " (@" .. plr.Name .. ")", TextColor3 = Color3.new(1, 1, 1),
                         TextSize = 12, Font = Enum.Font.GothamMedium, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 22,
                     }, b)
+                    -- Tıklayınca seç / seçimi kaldır (liste açık kalır, birden fazla oyuncu seçilebilir)
                     bind(b.MouseButton1Click, function()
                         playClickSound()
-                        mm2Target = plr
-                        selSuppress = true
-                        setText(selBox, plr.Name)
-                        selSuppress = false
-                        hideSelList()
+                        if SFX.mm2Selected[plr] then SFX.mm2Selected[plr] = nil else SFX.mm2Selected[plr] = true end
+                        tick.Visible = SFX.mm2Selected[plr] == true
+                        SFX.updateSelCount()
                     end)
                 end
             end
@@ -11711,13 +11866,26 @@ end)()
             hideSelList()
         end
     end
-    bind(selBox.Focused, function() updateSelList(selBox.Text) end)
+    bind(selBox.Focused, function() SFX.updateSelCount() updateSelList(selBox.Text) end)
+    bind(selBox.FocusLost, function(enter) if enter then hideSelList() end end)
     bind(selBox:GetPropertyChangedSignal("Text"), function()
         if not selSuppress and selBox:IsFocused() then updateSelList(selBox.Text) end
     end)
 
     createButton(MM2Page, "🔪  Seçili Oyuncuyu Öldür", function()
-        killPlayer(currentTarget())
+        SFX.killMany(SFX.getTargets())
+    end)
+    createButton(MM2Page, "🧹  Seçili Oyuncuları Temizle", function()
+        SFX.mm2Selected = {}
+        for _, c in ipairs(selList:GetChildren()) do
+            if c:IsA("TextButton") then
+                for _, d in ipairs(c:GetChildren()) do
+                    if d:IsA("TextLabel") and d.Text == "✔" then d.Visible = false end
+                end
+            end
+        end
+        SFX.updateSelCount()
+        hideSelList()
     end)
     do
         -- Katil olduğunda herkesi otomatik ve sürekli keser (Kill All'u kendisi tekrar tekrar çalıştırır). Aç / kapa anahtarı.
@@ -11748,6 +11916,194 @@ end)()
         end)
     end
 
+    -- Seçili oyuncuyu katilken otomatik kes; ayrı fonksiyon kapsamı local sınırını korur.
+    ;(function()
+        local TARGET_AUTO_TOGGLE = "🔪  Seçili Oyuncuyu Otomatik Kes (Katilken • aç / kapa)"
+        SFX.autoSelectedKillOn = savedOr(TARGET_AUTO_TOGGLE, false)
+        createToggle(MM2Page, TARGET_AUTO_TOGGLE, SFX.autoSelectedKillOn, function(v)
+            SFX.autoSelectedKillOn = v
+            if v then
+                notify("Otomatik Kes", "Aktif! Katil olduğunda seçili oyuncu otomatik kesilir.", 4)
+            end
+        end)
+        -- Maç başına BİR kez (oyuncu başına): hedef kesilince (ya da maçta öldüyse) tekrar kesmeye çalışma.
+        -- Hedef ölüp lobide yeniden doğunca peşinden lobiye gitme. Yeni maçta (biz lobiye
+        -- dönünce) otomatik sıfırlanır.
+        local doneSet = setmetatable({}, {__mode = "k"})
+        local function targetInLobby(plr)
+            local ch = plr and plr.Character
+            local th = ch and ch:FindFirstChild("HumanoidRootPart")
+            if not th then return true end
+            local pos = th.Position
+            local m
+            pcall(function() m = findMap() end)
+            if m == nil then return true end
+            local function inBox(model, pad)
+                local ok, cf, size = pcall(function() return model:GetBoundingBox() end)
+                if not ok or not cf then return nil end
+                local rel = cf:PointToObjectSpace(pos)
+                local h = size / 2 + pad
+                return math.abs(rel.X) <= h.X and math.abs(rel.Y) <= h.Y and math.abs(rel.Z) <= h.Z
+            end
+            local lobby = workspace:FindFirstChild("Lobby")
+            if lobby and inBox(lobby, Vector3.new(12, 40, 12)) then return true end
+            local L = Settings.MM2Lobby
+            if type(L) == "table" and tonumber(L.x) and tonumber(L.y) and tonumber(L.z) then
+                if (pos - Vector3.new(L.x, L.y, L.z)).Magnitude < 45 then return true end
+            end
+            if m:IsA("Model") and inBox(m, Vector3.new(30, 120, 30)) == false then return true end
+            return false
+        end
+        task.spawn(function()
+            while alive do
+                task.wait(0.35)
+                if SFX.autoSelectedKillOn then
+                    pcall(function()
+                        -- Ben lobideysem maç bitmiştir: sıfırla, yeni maçı bekle
+                        if SFX.inLobby() then doneSet = setmetatable({}, {__mode = "k"}) return end
+                        if killBusy or not (SFX.hasKnife and SFX.hasKnife()) then return end
+                        local hum = myHum()
+                        if not hum or hum.Health <= 0 then return end
+                        local pending = {}
+                        for _, target in ipairs(SFX.getTargets()) do
+                            if not doneSet[target] then
+                                -- Hedef bu maçta ölmüş ya da lobiye gitmiş: bu maç için bitti
+                                if not targetAlive(target) or targetInLobby(target) then
+                                    doneSet[target] = true
+                                else
+                                    pending[#pending + 1] = target
+                                end
+                            end
+                        end
+                        if #pending == 0 then return end
+                        SFX.killMany(pending)
+                        -- Kesme bitene kadar bekle; ölen hedefler bu maç için bir daha kesilmez
+                        local t0 = os.clock()
+                        while killBusy and os.clock() - t0 < 8 do task.wait(0.05) end
+                        for _, target in ipairs(pending) do
+                            if not targetAlive(target) or targetInLobby(target) then
+                                doneSet[target] = true
+                            end
+                        end
+                    end)
+                end
+            end
+        end)
+    end)()
+
+    -- Seçili oyuncuları şerif / kahramanken otomatik vur (✔ ile seçilenler).
+    -- Silah ele geçer geçmez (her karede kontrol) hemen ateş eder ve hedef ölene kadar SERİ ATIŞ yapar (aralık ayarlı).
+    -- Güvenlik: MM2'de şerif masumu vurursa kendisi ölür; bu yüzden varsayılan olarak yalnızca KATİL olan seçili oyuncu vurulur.
+    ;(function()
+        local TOG = "🔫  Seçili Oyuncuyu Otomatik Vur (Şerif / Kahramanken • aç / kapa)"
+        local TOG_ANY = "☠️  Seçili Oyuncu Katil Değilse de Vur (masumu vurursan sen ölürsün)"
+        SFX.autoShootOn = savedOr(TOG, false)
+        SFX.autoShootAny = savedOr(TOG_ANY, false)
+        SFX.sprayMs = 60
+        createToggle(MM2Page, TOG, SFX.autoShootOn, function(v)
+            SFX.autoShootOn = v
+            if v then
+                notify("Otomatik Vur", "Aktif! Silah eline geçer geçmez seçili (✔) katile seri atış yapılır.", 4)
+            end
+        end)
+        createToggle(MM2Page, TOG_ANY, SFX.autoShootAny, function(v)
+            SFX.autoShootAny = v
+        end)
+        createSlider(MM2Page, "⚡  Seri Atış Aralığı (ms)  •  düşük = daha hızlı tarar", 20, 300, 60, function(v)
+            SFX.sprayMs = tonumber(v) or 60
+        end)
+        local function inLobbyPos(plr)
+            local ch = plr and plr.Character
+            local th = ch and ch:FindFirstChild("HumanoidRootPart")
+            if not th then return true end
+            local pos = th.Position
+            local m
+            pcall(function() m = findMap() end)
+            if m == nil then return true end
+            local function inBox(model, pad)
+                local ok, cf, size = pcall(function() return model:GetBoundingBox() end)
+                if not ok or not cf then return nil end
+                local rel = cf:PointToObjectSpace(pos)
+                local h = size / 2 + pad
+                return math.abs(rel.X) <= h.X and math.abs(rel.Y) <= h.Y and math.abs(rel.Z) <= h.Z
+            end
+            local lobby = workspace:FindFirstChild("Lobby")
+            if lobby and inBox(lobby, Vector3.new(12, 40, 12)) then return true end
+            local L = Settings.MM2Lobby
+            if type(L) == "table" and tonumber(L.x) and tonumber(L.y) and tonumber(L.z) then
+                if (pos - Vector3.new(L.x, L.y, L.z)).Magnitude < 45 then return true end
+            end
+            if m:IsA("Model") and inBox(m, Vector3.new(30, 120, 30)) == false then return true end
+            return false
+        end
+        local sessions = setmetatable({}, {__mode = "k"})
+        local MAXSESS, SESSION_TIME = 6, 6   -- aynı hedefe tur başına en fazla seri atış turu / her turun en uzun süresi (sn)
+        local busy = false
+
+        -- Roller arka planda tazelenir; ateş anında beklemeden son bilgi (roleCache) kullanılır
+        task.spawn(function()
+            while alive do
+                task.wait(0.5)
+                if SFX.autoShootOn and not SFX.inLobby() then pcall(fetchRoles) end
+            end
+        end)
+
+        local function spray(t)
+            local hm = myHum()
+            local gun = findGun()
+            if gun and hm and gun.Parent ~= LocalPlayer.Character then pcall(function() hm:EquipTool(gun) end) end
+            SFX.inBurst, SFX.burstPlayed, SFX.burstFx = true, false, false   -- tek ses / efekt
+            local t0 = os.clock()
+            while alive and SFX.autoShootOn and os.clock() - t0 < SESSION_TIME do
+                local h2 = myHum()
+                if not h2 or h2.Health <= 0 or not hasGun() then break end
+                if not targetAlive(t) or inLobbyPos(t) then break end
+                local ch = t.Character
+                local part = ch and targetPartOf(ch)
+                local th = ch and ch:FindFirstChildOfClass("Humanoid")
+                if not (part and th) then break end
+                local g2 = findGun()
+                if g2 and g2.Parent ~= LocalPlayer.Character then
+                    pcall(function() h2:EquipTool(g2) end)   -- elime gelene kadar kare bekle
+                    RunService.Heartbeat:Wait()
+                else
+                    if (SFX.hitboxW or 0) > 0 and SFX.hbApply then pcall(SFX.hbApply, ch) end
+                    local okA, resA = pcall(SFX.airShoot, part, th, true)   -- true = bekleme yok (seri atış)
+                    if not (okA and resA) then
+                        pcall(fireGunAt, function() return aimPoint(part, th) end)
+                    end
+                    task.wait(math.max(0.01, (tonumber(SFX.sprayMs) or 60) / 1000))
+                end
+            end
+            SFX.inBurst = false
+        end
+
+        bind(RunService.Heartbeat, function()
+            if busy or not SFX.autoShootOn then return end
+            if not hasGun() then return end   -- silah (şerif / kahraman) elime geçene kadar bekle
+            busy = true
+            pcall(function()
+                local hum = myHum()
+                if not hum or hum.Health <= 0 then return end
+                -- Ben lobideysem tur bitmiştir: sayaçları sıfırla
+                if SFX.inLobby() then sessions = setmetatable({}, {__mode = "k"}) return end
+                local roles = roleCache
+                if not roles or next(roles) == nil then roles = fetchRoles() end
+                for _, t in ipairs(SFX.getTargets()) do
+                    if (sessions[t] or 0) < MAXSESS and targetAlive(t) and not inLobbyPos(t) then
+                        local info = roles[t.Name]
+                        if SFX.autoShootAny or (info and info.Role == "Murderer") then
+                            sessions[t] = (sessions[t] or 0) + 1
+                            spray(t)
+                            return
+                        end
+                    end
+                end
+            end)
+            busy = false
+        end)
+    end)()
+
     createSection(MM2Page, "🗡️  SİLAHI ALANI OTOMATİK KES  (KATİL)")
     do
         local T_HERO = "🗡️  Silahı Alanı Otomatik Kes (Hero • anında bıçakla kes, geri dön)"
@@ -11762,6 +12118,14 @@ end)()
         end)
         createToggle(MM2Page, T_SHER, SFX.autoSheriffOn, function(v)
             SFX.autoSheriffOn = v
+        end)
+        local T_SHIELD = "🛡️  Katil Koruması (Tur başı: silahı alanı / ✔ seçilileri fırlat)"
+        SFX.shieldOn = savedOr(T_SHIELD, false)
+        createToggle(MM2Page, T_SHIELD, SFX.shieldOn, function(v)
+            SFX.shieldOn = v
+            if v then
+                notify("Katil Koruması", "Aktif! Katilken tur başında (bıçak verilene kadar) elinde silah olan ve ✔ seçili oyuncular boşluğa fırlatılır.", 6)
+            end
         end)
         createSlider(MM2Page, "⚡  Kesme Hızı (%)  •  öldüremiyorsa azalt, belli oluyorsa artır", 0, 100, 70, function(v)
             SFX.stabSpeed = (tonumber(v) or 70) / 100
